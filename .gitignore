@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+.next/
+out/
+build/
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.*.local
+
+# Expo
+.expo/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Uploads (keep folder, ignore contents)
+backend/uploads/**
+!backend/uploads/.gitkeep
+
+# Sensitive data files (real participant records, internal docs)
+**/*.xlsx
+**/*.pdf
+app/PRD/
+
+# Legacy folders (kept for reference, not tracked)
+web/_src-vite-legacy/
+web/_server-legacy/
+web/_index-vite-legacy.html
+web/_vite.config-legacy.ts

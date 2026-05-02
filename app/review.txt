@@ -1,0 +1,4 @@
+1. sd/smp/sma -> grade (1,2,3...), setiap tahun update grade (grade 1 jadi 2)
+2. teacher: bulk register (portal.kompetisi.net) -> pas guru masukin data siswa2 nya harus dari sistem langsung kirim login sama password buat bisa login di aplikasi
+3. teacher: bisa liat list kompetisi dan siswa2 nya registered ke yang mana aja
+4. student, teacher, parent - aplikasi. organizer, teacher, country rep - website
