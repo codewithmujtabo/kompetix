@@ -14,6 +14,38 @@ import { otpSendLimiter, otpVerifyLimiter, authLimiter } from "../middleware/rat
 
 const router = Router();
 
+// ── T13: Auto-link historical records on login ────────────────────────────
+// Runs once per user (skips if already linked). Matches on email OR phone.
+async function autoLinkHistoricalRecords(userId: string, email: string | null, phone: string | null): Promise<void> {
+  try {
+    const existing = await pool.query(
+      "SELECT id FROM historical_participants WHERE claimed_by = $1 LIMIT 1",
+      [userId]
+    );
+    if (existing.rows.length > 0) return; // already linked
+
+    const conditions: string[] = [];
+    const params: unknown[] = [userId];
+    let idx = 2;
+
+    if (email) { conditions.push(`email = $${idx++}`); params.push(email.toLowerCase()); }
+    if (phone) { conditions.push(`phone = $${idx++}`); params.push(phone); }
+    if (conditions.length === 0) return;
+
+    const result = await pool.query(
+      `UPDATE historical_participants
+       SET claimed_by = $1, claimed_at = now()
+       WHERE claimed_by IS NULL AND (${conditions.join(" OR ")})`,
+      params
+    );
+    if ((result.rowCount ?? 0) > 0) {
+      console.log(`[historical] Auto-linked ${result.rowCount} records for user ${userId}`);
+    }
+  } catch (err) {
+    console.error("[historical] Auto-link error:", err);
+  }
+}
+
 // ── Helper: fetch user + role data ────────────────────────────────────────
 async function fetchUserWithRole(userId: string) {
   const userResult = await pool.query("SELECT * FROM users WHERE id = $1", [userId]);
@@ -308,6 +340,8 @@ router.post("/phone/verify-otp", otpVerifyLimiter, async (req: Request, res: Res
 
     const token = generateToken(userId);
     const user = await fetchUserWithRole(userId);
+    // T13: Auto-link historical records on phone login
+    autoLinkHistoricalRecords(userId, user?.email ?? null, e164);
     res.json({ token, user });
   } catch (err: any) {
     console.error("Phone verify-otp error:", err);
@@ -323,6 +357,8 @@ router.get("/me", authMiddleware, async (req: Request, res: Response) => {
       res.status(404).json({ message: "User not found" });
       return;
     }
+    // T13: Fire-and-forget auto-link — does not block the response
+    autoLinkHistoricalRecords(req.userId!, user.email ?? null, user.phone ?? null);
     res.json(user);
   } catch (err) {
     console.error("Get me error:", err);

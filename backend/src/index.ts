@@ -26,6 +26,7 @@ import adminRoutes from "./routes/admin.routes";
 import organizerRoutes from "./routes/organizer.routes";
 import regionsRoutes from "./routes/regions.routes";
 import favoritesRoutes from "./routes/favorites.routes";
+import historicalRoutes from "./routes/historical.routes";
 import { initializeCronJobs } from "./services/cron.service";
 
 const app = express();
@@ -57,6 +58,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/organizers", organizerRoutes);
 app.use("/api/regions", regionsRoutes);
 app.use("/api/favorites", favoritesRoutes);
+app.use("/api/historical", historicalRoutes);
 
 // Sentry error handler must come before our own error handler
 Sentry.setupExpressErrorHandler(app);

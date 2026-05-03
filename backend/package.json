@@ -13,7 +13,8 @@
     "db:seed": "ts-node src/db/seed.ts",
     "db:seed:competitions": "ts-node src/db/seed-competitions-from-csv.ts",
     "db:create-admin": "ts-node src/db/create-admin.ts",
-    "db:init": "psql $DATABASE_URL < src/db/schema.sql"
+    "db:init": "psql $DATABASE_URL < src/db/schema.sql",
+    "db:import-historical": "ts-node src/db/import-historical.ts"
   },
   "dependencies": {
     "@sentry/node": "^10.47.0",
@@ -49,6 +50,7 @@
     "@types/pg": "^8.11.0",
     "nodemon": "^3.1.0",
     "ts-node": "^10.9.0",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "xlsx": "^0.18.5"
   }
 }
