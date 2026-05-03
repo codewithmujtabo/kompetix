@@ -3,26 +3,14 @@ import multer from "multer";
 import path from "path";
 import { pool } from "../config/database";
 import { authMiddleware } from "../middleware/auth";
-import { userUploadDir, deleteLocalFile } from "../services/storage.service";
+import { storeFile, deleteFile } from "../services/storage.service";
 
 const router = Router();
 router.use(authMiddleware);
 
-// ── Multer config ─────────────────────────────────────────────────────────────
+// ── Multer config (memory storage — works with local disk and S3) ─────────────
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: (req, _file, cb) => {
-      cb(null, userUploadDir(req.userId!));
-    },
-    filename: (_req, file, cb) => {
-      const ext  = path.extname(file.originalname);
-      const base = path.basename(file.originalname, ext)
-        .replace(/[^a-z0-9]/gi, "_")
-        .toLowerCase()
-        .slice(0, 40);
-      cb(null, `${Date.now()}-${base}${ext}`);
-    },
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
   fileFilter: (_req, file, cb) => {
     const allowed = [
@@ -58,8 +46,13 @@ router.post(
         return;
       }
 
-      // Relative URL served by the static middleware in index.ts
-      const fileUrl = `/uploads/${req.userId}/${file.filename}`;
+      const ext = path.extname(file.originalname);
+      const base = path.basename(file.originalname, ext)
+        .replace(/[^a-z0-9]/gi, "_")
+        .toLowerCase()
+        .slice(0, 40);
+      const filename = `${Date.now()}-${base}${ext}`;
+      const fileUrl = await storeFile(req.userId!, file.buffer, filename, file.mimetype);
 
       const result = await pool.query(
         `INSERT INTO documents (user_id, doc_type, file_name, file_size, file_url)
@@ -117,9 +110,8 @@ router.delete("/:id", async (req: Request, res: Response) => {
       return;
     }
 
-    // Delete the actual file from disk
     const { file_url } = result.rows[0];
-    if (file_url) deleteLocalFile(file_url);
+    if (file_url) await deleteFile(file_url);
 
     res.json({ message: "Document deleted" });
   } catch (err) {

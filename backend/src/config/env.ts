@@ -31,4 +31,10 @@ export const env = {
   MIDTRANS_CLIENT_KEY: process.env.MIDTRANS_CLIENT_KEY || "",
   MIDTRANS_IS_PRODUCTION: process.env.MIDTRANS_IS_PRODUCTION === "true",
   API_CO_ID_KEY: process.env.API_CO_ID_KEY || "",
+  // MinIO / S3-compatible object storage (optional — falls back to local disk when absent)
+  MINIO_ENDPOINT: process.env.MINIO_ENDPOINT || "",       // e.g. http://localhost:9000
+  MINIO_ACCESS_KEY: process.env.MINIO_ACCESS_KEY || "",
+  MINIO_SECRET_KEY: process.env.MINIO_SECRET_KEY || "",
+  MINIO_BUCKET: process.env.MINIO_BUCKET || "kompetix",
+  MINIO_PUBLIC_URL: process.env.MINIO_PUBLIC_URL || "",   // public base URL for object URLs
 };

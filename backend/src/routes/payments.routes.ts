@@ -8,7 +8,7 @@ import { env } from "../config/env";
 import { authMiddleware } from "../middleware/auth";
 import { createSnapToken } from "../services/midtrans.service";
 import * as pushService from "../services/push.service";
-import { userUploadDir } from "../services/storage.service";
+import { storeFile } from "../services/storage.service";
 
 const router = Router();
 
@@ -330,21 +330,9 @@ router.post("/snap", async (req: Request, res: Response) => {
   }
 });
 
-// ── Multer config for payment proof uploads ──────────────────────────────────
+// ── Multer config for payment proof uploads (memory storage — works with local disk and S3) ──
 const uploadProof = multer({
-  storage: multer.diskStorage({
-    destination: (req, _file, cb) => {
-      cb(null, userUploadDir(req.userId!));
-    },
-    filename: (_req, file, cb) => {
-      const ext = path.extname(file.originalname);
-      const base = path.basename(file.originalname, ext)
-        .replace(/[^a-z0-9]/gi, "_")
-        .toLowerCase()
-        .slice(0, 40);
-      cb(null, `proof-${Date.now()}-${base}${ext}`);
-    },
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
   fileFilter: (_req, file, cb) => {
     const allowed = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
@@ -387,7 +375,10 @@ router.post(
       }
 
       const payment = paymentResult.rows[0];
-      const fileUrl = `/uploads/${userId}/${file.filename}`;
+      const ext = path.extname(file.originalname);
+      const base = path.basename(file.originalname, ext).replace(/[^a-z0-9]/gi, "_").toLowerCase().slice(0, 40);
+      const filename = `proof-${Date.now()}-${base}${ext}`;
+      const fileUrl = await storeFile(userId, file.buffer, filename, file.mimetype);
 
       // Update payment with proof URL
       await pool.query(

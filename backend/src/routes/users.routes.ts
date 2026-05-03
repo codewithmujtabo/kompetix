@@ -3,24 +3,16 @@ import multer from "multer";
 import path from "path";
 import { pool } from "../config/database";
 import { authMiddleware } from "../middleware/auth";
-import { userUploadDir } from "../services/storage.service";
+import { storeFile } from "../services/storage.service";
 
 const router = Router();
 
 // All routes require auth
 router.use(authMiddleware);
 
-// ── Multer config for photo upload ────────────────────────────────────────────
+// ── Multer config for photo upload (memory storage — works with local disk and S3) ──
 const photoUpload = multer({
-  storage: multer.diskStorage({
-    destination: (req, _file, cb) => {
-      cb(null, userUploadDir(req.userId!));
-    },
-    filename: (_req, file, cb) => {
-      const ext = path.extname(file.originalname);
-      cb(null, `profile-${Date.now()}${ext}`);
-    },
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
   fileFilter: (_req, file, cb) => {
     const allowed = ["image/jpeg", "image/jpg", "image/png"];
@@ -213,7 +205,9 @@ router.post(
         return;
       }
 
-      const photoUrl = `/uploads/${req.userId}/${file.filename}`;
+      const ext = path.extname(file.originalname);
+      const filename = `profile-${Date.now()}${ext}`;
+      const photoUrl = await storeFile(req.userId!, file.buffer, filename, file.mimetype);
 
       await pool.query(
         "UPDATE users SET photo_url = $1, updated_at = now() WHERE id = $2",
@@ -241,7 +235,9 @@ router.post(
         return;
       }
 
-      const cardUrl = `/uploads/${req.userId}/${file.filename}`;
+      const ext = path.extname(file.originalname);
+      const filename = `card-${Date.now()}${ext}`;
+      const cardUrl = await storeFile(req.userId!, file.buffer, filename, file.mimetype);
 
       await pool.query(
         "UPDATE students SET student_card_url = $1, updated_at = now() WHERE id = $2",
