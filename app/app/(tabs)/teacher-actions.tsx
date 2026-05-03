@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
@@ -28,12 +29,12 @@ export default function TeacherActionsScreen() {
 
   const quickActions = [
     {
-      id: "bulk-register",
-      icon: "person.3.fill",
+      id: "web-portal",
+      icon: "globe",
       title: "Bulk Registration",
-      subtitle: "Register multiple students at once",
+      subtitle: "Use the web portal to register multiple students via CSV",
       color: "#4F46E5",
-      onPress: () => router.push("/bulk-registration"),
+      onPress: () => Linking.openURL("https://kompetix.id/teacher"),
     },
     {
       id: "export-data",
@@ -41,10 +42,7 @@ export default function TeacherActionsScreen() {
       title: "Export Student Data",
       subtitle: "Download CSV of all students",
       color: "#10B981",
-      onPress: () => {
-        // TODO: Implement export functionality
-        console.log("Export data");
-      },
+      onPress: () => Linking.openURL("https://kompetix.id/teacher"),
     },
     {
       id: "send-reminder",
@@ -53,8 +51,7 @@ export default function TeacherActionsScreen() {
       subtitle: "Notify students about deadlines",
       color: "#F59E0B",
       onPress: () => {
-        // TODO: Implement reminder functionality
-        console.log("Send reminder");
+        console.log("Send reminder — coming soon");
       },
     },
     {
@@ -64,7 +61,6 @@ export default function TeacherActionsScreen() {
       subtitle: "Detailed performance reports",
       color: "#8B5CF6",
       onPress: () => {
-        // Navigate to analytics tab
         router.push("/(tabs)/teacher-analytics");
       },
     },
@@ -89,6 +85,21 @@ export default function TeacherActionsScreen() {
             Fast access to common tasks
           </Text>
         </View>
+
+        {/* Web portal banner */}
+        <TouchableOpacity
+          style={styles.webPortalBanner}
+          onPress={() => Linking.openURL("https://kompetix.id/teacher")}
+          activeOpacity={0.8}
+        >
+          <View style={styles.webPortalBannerContent}>
+            <Text style={styles.webPortalBannerTitle}>Full features on the web portal</Text>
+            <Text style={styles.webPortalBannerBody}>
+              Bulk registration, CSV export, and advanced reports are available at kompetix.id/teacher
+            </Text>
+          </View>
+          <Text style={styles.webPortalBannerArrow}>›</Text>
+        </TouchableOpacity>
 
         {/* Quick Actions Grid */}
         <View style={styles.actionsGrid}>
@@ -245,6 +256,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#64748B",
   },
+  webPortalBanner: {
+    backgroundColor: "#EEF2FF",
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#C7D2FE",
+  },
+  webPortalBannerContent: { flex: 1, marginRight: 8 },
+  webPortalBannerTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#3730A3",
+    marginBottom: 4,
+  },
+  webPortalBannerBody: {
+    fontSize: 12,
+    color: "#4338CA",
+    lineHeight: 18,
+  },
+  webPortalBannerArrow: { fontSize: 22, color: "#4338CA", fontWeight: "700" },
   actionsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",

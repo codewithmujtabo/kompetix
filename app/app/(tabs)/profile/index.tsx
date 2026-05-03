@@ -62,6 +62,11 @@ export default function ProfileScreen() {
             onPress: () => router.push("/(tabs)/profile/document-vault"),
           },
           {
+            emoji: "🏆",
+            label: "Competition History",
+            onPress: () => router.push("/(tabs)/profile/history"),
+          },
+          {
             emoji: "👨‍👩‍👧",
             label: "Link Parent Account",
             onPress: () => router.push("/(tabs)/profile/link-parent"),

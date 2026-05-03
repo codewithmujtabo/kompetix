@@ -12,6 +12,27 @@ import { userUploadDir } from "../services/storage.service";
 
 const router = Router();
 
+// ── T20: Parent ownership check ───────────────────────────────────────────────
+// Returns true if userId owns the registration directly OR is a linked parent.
+async function canAccessRegistration(userId: string, registrationId: string): Promise<boolean> {
+  const result = await pool.query(
+    `SELECT 1 FROM registrations r
+     WHERE r.id = $1
+       AND (
+         r.user_id = $2
+         OR EXISTS (
+           SELECT 1 FROM parent_student_links psl
+           WHERE psl.parent_id = $2
+             AND psl.student_id = r.user_id
+             AND psl.status = 'active'
+         )
+       )
+     LIMIT 1`,
+    [registrationId, userId]
+  );
+  return result.rows.length > 0;
+}
+
 // ── POST /api/payments/webhook ────────────────────────────────────────────────
 // Midtrans calls this directly — no auth middleware.
 // https://docs.midtrans.com/reference/handling-notifications
@@ -142,6 +163,12 @@ router.post("/manual-intent", async (req: Request, res: Response) => {
       return;
     }
 
+    const allowed = await canAccessRegistration(req.userId!, registrationId);
+    if (!allowed) {
+      res.status(404).json({ message: "Registration not found" });
+      return;
+    }
+
     const registrationResult = await pool.query(
       `SELECT
          r.id,
@@ -151,8 +178,8 @@ router.post("/manual-intent", async (req: Request, res: Response) => {
          c.name as competition_name
        FROM registrations r
        JOIN competitions c ON c.id = r.comp_id
-       WHERE r.id = $1 AND r.user_id = $2`,
-      [registrationId, req.userId]
+       WHERE r.id = $1`,
+      [registrationId]
     );
 
     if (registrationResult.rows.length === 0) {
@@ -205,7 +232,13 @@ router.post("/snap", async (req: Request, res: Response) => {
       return;
     }
 
-    // Load registration + competition + user
+    const allowed = await canAccessRegistration(req.userId!, registrationId);
+    if (!allowed) {
+      res.status(404).json({ message: "Registration not found" });
+      return;
+    }
+
+    // Load registration + competition + student user
     const result = await pool.query(
       `SELECT
          r.id         AS reg_id,
@@ -217,8 +250,8 @@ router.post("/snap", async (req: Request, res: Response) => {
        FROM registrations r
        JOIN competitions c ON c.id = r.comp_id
        JOIN users u ON u.id = r.user_id
-       WHERE r.id = $1 AND r.user_id = $2`,
-      [registrationId, req.userId]
+       WHERE r.id = $1`,
+      [registrationId]
     );
 
     if (result.rows.length === 0) {
