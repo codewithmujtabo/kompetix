@@ -308,6 +308,11 @@ export default function MyCompetitionsScreen() {
             <Text style={styles.cardTitle}>{item.competitionName}</Text>
             <Text style={styles.cardMeta}>{formatCurrency(item.fee)}</Text>
             <StatusBadge status={item.status} />
+            {item.registrationNumber ? (
+              <View style={styles.regNumberBadge}>
+                <Text style={styles.regNumberText}>{item.registrationNumber}</Text>
+              </View>
+            ) : null}
             {item.status === "pending_review" ? (
               <Text style={styles.helperText}>
                 Admin is reviewing your proof. You will get a notification after approval.
@@ -383,6 +388,11 @@ export default function MyCompetitionsScreen() {
             <Text style={styles.cardTitle}>{item.competitionName}</Text>
             <Text style={styles.cardMeta}>{formatCurrency(item.fee)}</Text>
             <StatusBadge status={item.status} />
+            {item.registrationNumber ? (
+              <View style={styles.regNumberBadge}>
+                <Text style={styles.regNumberText}>{item.registrationNumber}</Text>
+              </View>
+            ) : null}
             <Text style={styles.helperText}>
               Open the competition hub to view schedule, platform, venue, and participant instructions.
             </Text>
@@ -617,6 +627,20 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 12,
     fontWeight: "800",
+  },
+  regNumberBadge: {
+    alignSelf: "flex-start",
+    marginTop: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    backgroundColor: "#EEF2FF",
+    borderRadius: 6,
+  },
+  regNumberText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#4338CA",
+    letterSpacing: 0.5,
   },
   actionRow: {
     flexDirection: "row",

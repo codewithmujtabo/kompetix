@@ -17,6 +17,7 @@ function mapRow(raw: any): Registration {
     fee: meta.fee ?? 0,
     status: raw.status,
     createdAt: raw.createdAt,
+    registrationNumber: raw.registrationNumber ?? null,
     meta,
   };
 }
@@ -56,6 +57,8 @@ export interface RegistrationDetail {
   updatedAt: string;
   reviewedAt?: string | null;
   rejectionReason?: string | null;
+  registrationNumber?: string | null;
+  profileSnapshot?: Record<string, any> | null;
   competitionName: string;
   competition: {
     id: string;
@@ -71,6 +74,7 @@ export interface RegistrationDetail {
     regCloseDate?: string | null;
     requiredDocs: string[];
     participantInstructions?: string | null;
+    post_payment_redirect_url?: string | null;
     rounds: Array<{
       id: string;
       roundName: string;

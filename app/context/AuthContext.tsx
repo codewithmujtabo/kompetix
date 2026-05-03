@@ -35,6 +35,7 @@ export interface Registration {
   fee: number;
   status: RegistrationStatus;
   createdAt: string;
+  registrationNumber?: string | null;
   meta?: Record<string, any>;
 }
 

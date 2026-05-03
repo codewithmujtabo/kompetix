@@ -58,6 +58,7 @@ router.get("/:id", async (req: Request, res: Response) => {
          c.reg_close_date,
          c.required_docs,
          c.participant_instructions,
+         c.post_payment_redirect_url,
          p.id as payment_id,
          p.payment_status,
          p.payment_method,
@@ -132,6 +133,7 @@ router.get("/:id", async (req: Request, res: Response) => {
           regCloseDate: row.reg_close_date,
           requiredDocs: row.required_docs ?? [],
           participantInstructions: row.participant_instructions,
+          post_payment_redirect_url: row.post_payment_redirect_url ?? null,
           rounds: rounds.map((round) => ({
             id: round.id,
             roundName: round.round_name,

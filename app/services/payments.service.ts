@@ -38,6 +38,14 @@ export async function createManualIntent(
   });
 }
 
+export async function getPostPaymentRedirectUrl(
+  registrationId: string
+): Promise<{ redirectUrl: string; registrationNumber: string | null }> {
+  return apiRequest<{ redirectUrl: string; registrationNumber: string | null }>(
+    `/payments/redirect/${registrationId}`
+  );
+}
+
 export async function uploadPaymentProof(
   paymentId: string,
   file: { uri: string; name: string; mimeType?: string | null }

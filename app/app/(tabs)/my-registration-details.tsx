@@ -1,11 +1,13 @@
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Brand } from "@/constants/theme";
 import * as registrationsService from "@/services/registrations.service";
+import * as paymentsService from "@/services/payments.service";
 import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Linking,
   Pressable,
   ScrollView,
@@ -30,6 +32,7 @@ export default function MyRegistrationDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const [redirectLoading, setRedirectLoading] = useState(false);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["registrationDetail", id],
@@ -39,6 +42,19 @@ export default function MyRegistrationDetailsScreen() {
 
   const registration = data;
   const competition = data?.competition;
+
+  const handleOpenRedirect = async () => {
+    if (!id) return;
+    try {
+      setRedirectLoading(true);
+      const { redirectUrl } = await paymentsService.getPostPaymentRedirectUrl(id);
+      await Linking.openURL(redirectUrl);
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "Failed to get redirect link.");
+    } finally {
+      setRedirectLoading(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -142,6 +158,43 @@ export default function MyRegistrationDetailsScreen() {
             </Text>
           )}
         </View>
+
+        {registration.profileSnapshot && Object.keys(registration.profileSnapshot).length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Profile at Registration</Text>
+            <Text style={styles.sectionBody}>
+              Your profile snapshot captured at the time of registration.
+            </Text>
+            {Object.entries(registration.profileSnapshot).map(([key, value]) =>
+              value ? (
+                <View key={key} style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>
+                    {key.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase())}
+                  </Text>
+                  <Text style={styles.infoValue}>{String(value)}</Text>
+                </View>
+              ) : null
+            )}
+          </View>
+        )}
+
+        {competition.post_payment_redirect_url && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Competition Platform</Text>
+            <Text style={styles.sectionBody}>
+              Access the organizer's competition platform with your registration token.
+            </Text>
+            <Pressable
+              style={[styles.primaryButton, redirectLoading && { opacity: 0.6 }]}
+              onPress={handleOpenRedirect}
+              disabled={redirectLoading}
+            >
+              <Text style={styles.primaryButtonText}>
+                {redirectLoading ? "Opening..." : "Open Competition Platform"}
+              </Text>
+            </Pressable>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
