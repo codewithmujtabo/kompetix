@@ -234,8 +234,8 @@ async function processRow(row: CsvRow): Promise<void> {
 
     // Create registration
     await client.query(
-      `INSERT INTO registrations (user_id, comp_id, status, registered_at)
-       VALUES ($1, $2, 'registered', now())`,
+      `INSERT INTO registrations (user_id, comp_id, status)
+       VALUES ($1, $2, 'registered')`,
       [userId, row.competition_id]
     );
 
