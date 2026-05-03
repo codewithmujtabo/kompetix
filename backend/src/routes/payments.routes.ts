@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import jwt from "jsonwebtoken";
 import { Router, Request, Response } from "express";
 import multer from "multer";
 import path from "path";
@@ -82,6 +83,15 @@ router.post("/webhook", async (req: Request, res: Response) => {
        WHERE id = $4`,
       [newPaymentStatus, transaction_id ?? null, payment_type ?? null, paymentDbId]
     );
+
+    // T10: VA/payment expired — reset registration so student can initiate a new payment
+    if (transaction_status === "expire") {
+      await pool.query(
+        `UPDATE registrations SET status = 'registered', updated_at = now() WHERE id = $1`,
+        [registration_id]
+      );
+      console.log(`Payment expired: order=${order_id} — registration ${registration_id} reset to 'registered'`);
+    }
 
     // ── Notify student to upload proof after payment ───────────────────────
     if (isSuccess) {
@@ -410,6 +420,70 @@ router.post(
     }
   }
 );
+
+// ── GET /api/payments/redirect/:registrationId ───────────────────────────────
+// T9: Returns a short-lived redirect URL (1 h JWT) for the organizer's post-payment page.
+// Mobile app shows a "Continue to organizer portal" button using this URL.
+router.get("/redirect/:registrationId", async (req: Request, res: Response) => {
+  try {
+    const { registrationId } = req.params;
+
+    // Verify registration belongs to this user and payment has settled
+    const result = await pool.query(
+      `SELECT r.id, r.comp_id, r.registration_number,
+              c.post_payment_redirect_url,
+              p.payment_status
+       FROM registrations r
+       JOIN competitions c ON c.id = r.comp_id
+       LEFT JOIN payments p ON p.registration_id = r.id
+       WHERE r.id = $1 AND r.user_id = $2
+       ORDER BY p.created_at DESC
+       LIMIT 1`,
+      [registrationId, req.userId]
+    );
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ message: "Registration not found" });
+      return;
+    }
+
+    const row = result.rows[0];
+
+    if (!["settlement", "capture"].includes(row.payment_status)) {
+      res.status(400).json({ message: "Payment has not been settled yet" });
+      return;
+    }
+
+    if (!row.post_payment_redirect_url) {
+      res.json({ redirectUrl: null, message: "No redirect URL configured for this competition" });
+      return;
+    }
+
+    // Generate a 1-hour JWT embedding the registration context
+    const redirectToken = jwt.sign(
+      { sub: req.userId, registrationId, compId: row.comp_id },
+      env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    // Persist the latest token so organizer portals can optionally verify it server-side
+    await pool.query(
+      "UPDATE registrations SET redirect_token = $1 WHERE id = $2",
+      [redirectToken, registrationId]
+    );
+
+    const separator = row.post_payment_redirect_url.includes("?") ? "&" : "?";
+    const redirectUrl = `${row.post_payment_redirect_url}${separator}token=${redirectToken}`;
+
+    res.json({
+      redirectUrl,
+      registrationNumber: row.registration_number,
+    });
+  } catch (err) {
+    console.error("GET /payments/redirect/:registrationId error:", err);
+    res.status(500).json({ message: "Failed to generate redirect URL" });
+  }
+});
 
 // ── GET /api/payments/:paymentId/proof ───────────────────────────────────────
 router.get("/:paymentId/proof", async (req: Request, res: Response) => {
