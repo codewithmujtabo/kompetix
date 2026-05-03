@@ -8,7 +8,7 @@ const snap = new midtransClient.Snap({
   clientKey: env.MIDTRANS_CLIENT_KEY,
 });
 
-const DEEP_LINK_BASE = "beyondclassroom://payment";
+const DEEP_LINK_BASE = "kompetix://payment";
 
 export interface SnapTokenResult {
   snapToken: string;
@@ -17,7 +17,7 @@ export interface SnapTokenResult {
 
 /**
  * Create a Midtrans Snap transaction token for a registration.
- * Callbacks redirect back to the app via the beyondclassroom:// scheme.
+ * Callbacks redirect back to the app via the kompetix:// scheme.
  */
 export async function createSnapToken(params: {
   orderId: string;

@@ -93,17 +93,17 @@ export default function PayScreen() {
       setPaymentId(createdPaymentId);
 
       // 2. Open Midtrans Snap in an in-app browser session.
-      //    openAuthSessionAsync watches for the beyondclassroom:// scheme redirect
+      //    openAuthSessionAsync watches for the kompetix:// scheme redirect
       //    and closes the browser automatically.
       setPaymentState("opening");
       const result = await WebBrowser.openAuthSessionAsync(
         redirectUrl,
-        "beyondclassroom://"
+        "kompetix://"
       );
 
       if (result.type === "success" && result.url) {
         // Parse Midtrans redirect params
-        // e.g. beyondclassroom://payment/finish?transaction_status=settlement&status_code=200
+        // e.g. kompetix://payment/finish?transaction_status=settlement&status_code=200
         const urlObj = new URL(result.url);
         const txStatus = urlObj.searchParams.get("transaction_status");
         const statusCode = urlObj.searchParams.get("status_code");
@@ -122,7 +122,7 @@ export default function PayScreen() {
       } else {
         // Browser closed without a deep-link redirect — this happens on iOS when
         // Midtrans finishes payment but ASWebAuthenticationSession doesn't catch
-        // the beyondclassroom:// redirect. Refresh registrations so the webhook
+        // the kompetix:// redirect. Refresh registrations so the webhook
         // result (if it already arrived) is reflected in the UI.
         setPaymentState("cancelled");
       }

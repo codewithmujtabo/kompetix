@@ -1,5 +1,5 @@
 /**
- * App color palette for Beyond Classroom.
+ * App color palette for Kompetix.
  * Import `Colors` anywhere you need a color — never hardcode hex values.
  */
 

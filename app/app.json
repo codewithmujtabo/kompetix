@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "beyond-classroom",
-    "slug": "beyond-classroom",
+    "name": "Kompetix",
+    "slug": "kompetix",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "beyondclassroom",
+    "scheme": "kompetix",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "ios": {

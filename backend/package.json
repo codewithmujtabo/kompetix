@@ -1,7 +1,7 @@
 {
-  "name": "beyond-classroom-api",
+  "name": "kompetix-api",
   "version": "1.0.0",
-  "description": "Beyond Classroom REST API - Express + PostgreSQL",
+  "description": "Kompetix REST API - Express + PostgreSQL",
   "main": "dist/index.js",
   "scripts": {
     "dev": "nodemon",

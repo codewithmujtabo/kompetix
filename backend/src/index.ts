@@ -63,7 +63,7 @@ Sentry.setupExpressErrorHandler(app);
 app.use(errorHandler);
 
 app.listen(env.PORT, () => {
-  console.log(`Beyond Classroom API running on port ${env.PORT}`);
+  console.log(`Kompetix API running on port ${env.PORT}`);
 
   // Initialize Sprint 4 cron jobs
   initializeCronJobs();

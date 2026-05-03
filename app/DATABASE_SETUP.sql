@@ -1,5 +1,5 @@
 -- ============================================================================
--- BEYOND CLASSROOM DATABASE SCHEMA
+-- KOMPETIX DATABASE SCHEMA
 -- ============================================================================
 
 -- 1. USERS TABLE (Base profile for all roles)

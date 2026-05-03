@@ -1,5 +1,5 @@
 -- ============================================================================
--- BEYOND CLASSROOM DATABASE SCHEMA (Plain PostgreSQL - No Supabase)
+-- KOMPETIX DATABASE SCHEMA (Plain PostgreSQL - No Supabase)
 -- ============================================================================
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
