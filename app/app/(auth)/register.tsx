@@ -275,7 +275,7 @@ export default function RegisterScreen() {
         // Navigate to role-specific screen
         const userRole = user?.role || role;
         if (userRole === "admin") {
-          router.replace("/(tabs)/admin-competitions");
+          router.replace("/(tabs)/web-portal-redirect");
         } else if (userRole === "teacher") {
           router.replace("/(tabs)/teacher-dashboard");
         } else if (userRole === "parent") {

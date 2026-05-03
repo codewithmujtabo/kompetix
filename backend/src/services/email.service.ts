@@ -47,6 +47,28 @@ export async function sendOtpEmail(email: string, code: string): Promise<void> {
   });
 }
 
+export async function sendTempPasswordEmail(email: string, tempPassword: string, fullName: string): Promise<void> {
+  await sendMailOrThrow({
+    from: env.SMTP_FROM,
+    to: email,
+    subject: "Your Kompetix Account — Temporary Password",
+    text: `Hello ${fullName},\n\nAn account has been created for you on Kompetix.\n\nEmail: ${email}\nTemporary password: ${tempPassword}\n\nPlease log in and change your password as soon as possible.\n\nIf you did not expect this email, please ignore it.`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #4F46E5;">Kompetix</h2>
+        <p>Hello <strong>${fullName}</strong>,</p>
+        <p>An account has been created for you on Kompetix.</p>
+        <table style="background: #F0F0FF; padding: 16px; border-radius: 8px; margin: 16px 0; width: 100%;">
+          <tr><td style="color: #666; font-size: 13px;">Email</td><td style="font-weight: bold;">${email}</td></tr>
+          <tr><td style="color: #666; font-size: 13px;">Temporary password</td><td style="font-weight: bold; color: #4F46E5; letter-spacing: 2px;">${tempPassword}</td></tr>
+        </table>
+        <p style="color: #666; font-size: 14px;">Please log in and change your password as soon as possible.</p>
+        <p style="color: #999; font-size: 12px;">If you did not expect this email, please ignore it.</p>
+      </div>
+    `,
+  });
+}
+
 export async function sendParentInvitationEmail(email: string, pin: string, studentName: string): Promise<void> {
   await sendMailOrThrow({
     from: env.SMTP_FROM,

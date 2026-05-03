@@ -109,42 +109,22 @@ export default function TabLayout() {
       <Tabs.Screen name="teacher-analytics" options={{ href: null }} />
       <Tabs.Screen name="teacher-actions" options={{ href: null }} />
 
-      {/* ADMIN ONLY: Competitions Management tab */}
+      {/* ADMIN ONLY: Web portal redirect — admin management moved to web */}
       <Tabs.Screen
-        name="admin-competitions"
+        name="web-portal-redirect"
         options={{
-          title: "Competitions",
+          title: "Admin",
           href: isAdmin ? undefined : null,
           tabBarIcon: ({ color }) => (
-            <IconSymbol size={26} name="trophy.fill" color={color} />
+            <IconSymbol size={26} name="desktopcomputer" color={color} />
           ),
         }}
       />
 
-      {/* ADMIN ONLY: Students tab */}
-      <Tabs.Screen
-        name="admin-students"
-        options={{
-          title: "Students",
-          href: isAdmin ? undefined : null,
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={26} name="person.3.fill" color={color} />
-          ),
-        }}
-      />
-
-      <Tabs.Screen
-        name="admin-reviews"
-        options={{
-          title: "Reviews",
-          href: isAdmin ? undefined : null,
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={26} name="checkmark.circle.fill" color={color} />
-          ),
-        }}
-      />
-
-      {/* Hidden admin screens */}
+      {/* Hidden legacy admin screens — kept so Expo Router doesn't 404 */}
+      <Tabs.Screen name="admin-competitions" options={{ href: null }} />
+      <Tabs.Screen name="admin-students" options={{ href: null }} />
+      <Tabs.Screen name="admin-reviews" options={{ href: null }} />
       <Tabs.Screen name="admin-competition-form" options={{ href: null }} />
       <Tabs.Screen name="admin-competition-registrations" options={{ href: null }} />
 

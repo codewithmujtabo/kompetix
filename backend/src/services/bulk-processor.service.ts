@@ -1,6 +1,7 @@
 import { pool } from "../config/database";
 import { parse } from "csv-parse/sync";
 import { hashPassword } from "./auth.service";
+import { isSmtpConfigured, sendTempPasswordEmail } from "./email.service";
 import crypto from "crypto";
 
 interface CsvRow {
@@ -10,6 +11,7 @@ interface CsvRow {
   nisn: string;
   grade: string;
   competition_id: string;
+  school_name?: string;
 }
 
 interface ProcessingError {
@@ -127,11 +129,16 @@ async function processRow(row: CsvRow): Promise<void> {
     throw new Error("Invalid grade (must be 1-12)");
   }
 
+  // Track newly created user so we can email temp password after commit
+  let newUserEmail: string | null = null;
+  let newUserTempPassword: string | null = null;
+  let newUserFullName: string | null = null;
+
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
 
-    // Check if student exists by email or NISN
+    // Check if student exists by NISN then email
     let userId: string | null = null;
 
     if (row.nisn) {
@@ -157,27 +164,32 @@ async function processRow(row: CsvRow): Promise<void> {
     // Create student if doesn't exist
     if (!userId) {
       const tempPassword = crypto.randomBytes(16).toString("hex");
-      const defaultPassword = await hashPassword(tempPassword);
+      const hashedPassword = await hashPassword(tempPassword);
 
       const userResult = await client.query(
         `INSERT INTO users (email, password_hash, full_name, phone, role, consent_accepted_at, consent_version)
          VALUES ($1, $2, $3, $4, 'student', now(), '1.0')
          RETURNING id`,
-        [row.email.toLowerCase(), defaultPassword, row.full_name, row.phone || null]
+        [row.email.toLowerCase(), hashedPassword, row.full_name, row.phone || null]
       );
       userId = userResult.rows[0].id;
 
-      // Create student record
+      // T3: insert school_name into students record
       await client.query(
-        `INSERT INTO students (id, grade, nisn)
-         VALUES ($1, $2, $3)`,
-        [userId, grade || null, row.nisn || null]
+        `INSERT INTO students (id, grade, nisn, school)
+         VALUES ($1, $2, $3, $4)`,
+        [userId, grade || null, row.nisn || null, row.school_name || null]
       );
+
+      // Capture for post-commit email
+      newUserEmail = row.email.toLowerCase();
+      newUserTempPassword = tempPassword;
+      newUserFullName = row.full_name;
     }
 
-    // Check if competition exists
+    // T3: Fetch competition with fee check
     const compCheck = await client.query(
-      "SELECT id, reg_close_date FROM competitions WHERE id = $1",
+      "SELECT id, reg_close_date, fee FROM competitions WHERE id = $1",
       [row.competition_id]
     );
 
@@ -187,12 +199,17 @@ async function processRow(row: CsvRow): Promise<void> {
 
     const competition = compCheck.rows[0];
 
-    // Check if registration is still open
+    // Check registration window
     if (competition.reg_close_date && new Date(competition.reg_close_date) < new Date()) {
       throw new Error("Competition registration is closed");
     }
 
-    // Check if student is already registered
+    // T3: Reject bulk registration for paid competitions
+    if (competition.fee > 0) {
+      throw new Error(`Competition requires a fee of Rp${competition.fee.toLocaleString("id-ID")}. Bulk registration is only available for free competitions.`);
+    }
+
+    // Check duplicate registration
     const existingReg = await client.query(
       "SELECT id FROM registrations WHERE user_id = $1 AND comp_id = $2",
       [userId, row.competition_id]
@@ -200,6 +217,19 @@ async function processRow(row: CsvRow): Promise<void> {
 
     if (existingReg.rows.length > 0) {
       throw new Error("Student already registered for this competition");
+    }
+
+    // T4: Atomically claim a quota slot — UPDATE returns 0 rows if competition is full
+    const quotaResult = await client.query(
+      `UPDATE competitions
+       SET quota = quota - 1
+       WHERE id = $1 AND (quota IS NULL OR quota > 0)
+       RETURNING quota`,
+      [row.competition_id]
+    );
+
+    if (quotaResult.rows.length === 0) {
+      throw new Error("Competition is full");
     }
 
     // Create registration
@@ -215,6 +245,15 @@ async function processRow(row: CsvRow): Promise<void> {
     throw err;
   } finally {
     client.release();
+  }
+
+  // T3: Email temp password after successful commit — failure here doesn't roll back the registration
+  if (newUserEmail && newUserTempPassword && newUserFullName && isSmtpConfigured()) {
+    try {
+      await sendTempPasswordEmail(newUserEmail, newUserTempPassword, newUserFullName);
+    } catch (emailErr) {
+      console.error(`[bulk-processor] Failed to send temp password email to ${newUserEmail}:`, emailErr);
+    }
   }
 }
 
