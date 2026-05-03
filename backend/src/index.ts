@@ -23,6 +23,7 @@ import bulkRegistrationRoutes from "./routes/bulk-registration.routes";
 import schoolsRoutes from "./routes/schools.routes";
 import teachersRoutes from "./routes/teachers.routes";
 import adminRoutes from "./routes/admin.routes";
+import organizerRoutes from "./routes/organizer.routes";
 import regionsRoutes from "./routes/regions.routes";
 import favoritesRoutes from "./routes/favorites.routes";
 import { initializeCronJobs } from "./services/cron.service";
@@ -53,6 +54,7 @@ app.use("/api/bulk-registration", bulkRegistrationRoutes);
 app.use("/api/schools", schoolsRoutes);
 app.use("/api/teachers", teachersRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/organizers", organizerRoutes);
 app.use("/api/regions", regionsRoutes);
 app.use("/api/favorites", favoritesRoutes);
 
