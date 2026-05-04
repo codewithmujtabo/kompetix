@@ -165,9 +165,9 @@ EXPO_PUBLIC_API_URL=http://<MAC_LAN_IP>:3000/api
 **Sprints 0–6 fully complete (T1–T22). Sprint 7 in progress (T23 done).**
 
 ### NEXT STEP TO START:
-**Sprint 7, Task 24** — Add `referral_code` column to registrations:
-- New migration: `ALTER TABLE registrations ADD COLUMN IF NOT EXISTS referral_code TEXT`
-- Capture referral_code from request body in `POST /api/registrations` in `registrations.routes.ts`
+**Sprint 7, Task 25** — Admin refund endpoint:
+- `POST /api/admin/payments/:id/refund` in `admin.routes.ts`
+- Calls Midtrans refund API, records refund, updates registration status to `refunded`
 
 **Also pending (VPS, do manually):**
 - **T21** — MinIO Docker on VPS: `docker run -d -p 9000:9000 -p 9001:9001 -e MINIO_ROOT_USER=... -e MINIO_ROOT_PASSWORD=... quay.io/minio/minio server /data --console-address :9001`, then set the 5 `MINIO_*` env vars in `backend/.env`.
@@ -230,7 +230,7 @@ EXPO_PUBLIC_API_URL=http://<MAC_LAN_IP>:3000/api
 | Task | Status | What | Files |
 |---|---|---|---|
 | T23 | ✅ | school_payment_batches table + bulk pay endpoint | `1746300000000_school-payment-batches.sql` + `payments.routes.ts` |
-| T24 | ⬜ | Add referral_code column to registrations | New migration + `registrations.routes.ts` |
+| T24 | ✅ | Add referral_code column to registrations | `1746400000000_add-referral-code.sql` + `registrations.routes.ts` |
 | T25 | ⬜ | Admin refund endpoint | `admin.routes.ts` |
 
 ### Dependency Map
