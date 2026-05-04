@@ -187,9 +187,9 @@ export default function RegisterScreen() {
 
     // Role-specific validations
     if (role === "student") {
-      if (!schoolNpsn || !school.trim())
+      if (!school.trim())
         e.school =
-          "Please enter your school NPSN";
+          "Please enter your school name or NPSN";
       if (!grade)
         e.grade =
           "Grade level is required";
@@ -726,46 +726,32 @@ export default function RegisterScreen() {
                 setSchoolAddress(item.metadata?.address || "");
               }}
               fetchSuggestions={async (query) => {
-                if (!regencyCode) {
-                  return [];
-                }
-                if (!query || query.trim().length === 0) {
-                  const schools = await schoolsService.searchSchools({
-                    regencyCode,
-                    grade,
-                    page: 1,
-                  });
-                  return schools.slice(0, 20).map((school) => ({
-                    id: school.npsn || school.id,
-                    name: `${school.npsn ? `${school.npsn} - ` : ''}${school.name}`,
-                    metadata: {
-                      npsn: school.npsn,
-                      address: school.address,
-                    },
+                if (!regencyCode) return [];
+                const q = query.trim();
+                if (!q) {
+                  const schools = await schoolsService.searchSchools({ regencyCode, grade, page: 1 });
+                  return schools.slice(0, 20).map((s) => ({
+                    id: s.npsn || s.id,
+                    name: `${s.npsn ? `${s.npsn} - ` : ''}${s.name}`,
+                    metadata: { npsn: s.npsn, address: s.address },
                   }));
                 }
-                if (query.trim().length < 3) {
-                  return [];
-                }
-                const schools = await schoolsService.searchSchools({
-                  name: query,
-                  regencyCode: regencyCode,
-                  grade: grade,
-                });
-                return schools.map((school) => ({
-                  id: school.npsn || school.id,
-                  name: `${school.npsn ? `${school.npsn} - ` : ''}${school.name}`,
-                  metadata: {
-                    npsn: school.npsn,
-                    address: school.address,
-                  },
+                if (q.length < 3) return [];
+                const isNpsn = /^\d{5,}$/.test(q);
+                const schools = await schoolsService.searchSchools(
+                  isNpsn ? { npsn: q } : { name: q, regencyCode, grade }
+                );
+                return schools.map((s) => ({
+                  id: s.npsn || s.id,
+                  name: `${s.npsn ? `${s.npsn} - ` : ''}${s.name}`,
+                  metadata: { npsn: s.npsn, address: s.address },
                 }));
               }}
               error={errors.school}
               minSearchLength={3}
               debounceMs={500}
-              allowCustom={false}
-              customLabel="My school is not listed"
+              allowCustom={true}
+              customLabel="My school is not listed — enter manually"
               editable={!!regencyCode}
               autoCapitalize="characters"
             />
@@ -921,26 +907,23 @@ export default function RegisterScreen() {
               onChangeText={setChildSchool}
               onSelect={(item) => setChildSchool(item.name)}
               fetchSuggestions={async (query) => {
-                if (!regencyCode) {
-                  return [];
-                }
-                if (!query || query.trim().length < 3) {
-                  return [];
-                }
-                const schools = await schoolsService.searchSchools({
-                  name: query,
-                  regencyCode: regencyCode,
-                });
-                return schools.map((school) => ({
-                  id: school.npsn || school.id,
-                  name: `${school.npsn ? `${school.npsn} - ` : ''}${school.name}`,
+                if (!regencyCode) return [];
+                const q = query.trim();
+                if (q.length < 3) return [];
+                const isNpsn = /^\d{5,}$/.test(q);
+                const schools = await schoolsService.searchSchools(
+                  isNpsn ? { npsn: q } : { name: q, regencyCode }
+                );
+                return schools.map((s) => ({
+                  id: s.npsn || s.id,
+                  name: `${s.npsn ? `${s.npsn} - ` : ''}${s.name}`,
                 }));
               }}
               error={errors.childSchool}
               minSearchLength={3}
               debounceMs={500}
-              allowCustom={false}
-              customLabel="My child's school is not listed"
+              allowCustom={true}
+              customLabel="Not listed — enter manually"
               editable={!!regencyCode}
               autoCapitalize="characters"
             />
@@ -1079,26 +1062,23 @@ export default function RegisterScreen() {
               onChangeText={setTeacherSchool}
               onSelect={(item) => setTeacherSchool(item.name)}
               fetchSuggestions={async (query) => {
-                if (!regencyCode) {
-                  return [];
-                }
-                if (!query || query.trim().length < 3) {
-                  return [];
-                }
-                const schools = await schoolsService.searchSchools({
-                  name: query,
-                  regencyCode: regencyCode,
-                });
-                return schools.map((school) => ({
-                  id: school.npsn || school.id,
-                  name: `${school.npsn ? `${school.npsn} - ` : ''}${school.name}`,
+                if (!regencyCode) return [];
+                const q = query.trim();
+                if (q.length < 3) return [];
+                const isNpsn = /^\d{5,}$/.test(q);
+                const schools = await schoolsService.searchSchools(
+                  isNpsn ? { npsn: q } : { name: q, regencyCode }
+                );
+                return schools.map((s) => ({
+                  id: s.npsn || s.id,
+                  name: `${s.npsn ? `${s.npsn} - ` : ''}${s.name}`,
                 }));
               }}
               error={errors.teacherSchool}
               minSearchLength={3}
               debounceMs={500}
-              allowCustom={false}
-              customLabel="My school is not listed"
+              allowCustom={true}
+              customLabel="Not listed — enter manually"
               editable={!!regencyCode}
               autoCapitalize="characters"
             />
