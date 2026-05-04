@@ -6,6 +6,7 @@ import path from "path";
 import { pool } from "../config/database";
 import { env } from "../config/env";
 import { authMiddleware } from "../middleware/auth";
+import { schoolAdminOnly } from "../middleware/school-admin.middleware";
 import { createSnapToken } from "../services/midtrans.service";
 import * as pushService from "../services/push.service";
 import { storeFile } from "../services/storage.service";
@@ -540,5 +541,126 @@ router.get("/:paymentId/proof", async (req: Request, res: Response) => {
     res.status(500).json({ message: "Failed to get proof" });
   }
 });
+
+// ── POST /api/payments/school-batch ─────────────────────────────────────────
+// School admin creates a batch payment for multiple student registrations.
+// Body: { registrationIds: string[] }
+// Returns: { batchId, snapToken, snapRedirectUrl, totalAmount }
+router.post(
+  "/school-batch",
+  authMiddleware,
+  schoolAdminOnly,
+  async (req: Request, res: Response) => {
+    try {
+      const adminId = req.userId!;
+      const { registrationIds } = req.body as { registrationIds: string[] };
+
+      if (!Array.isArray(registrationIds) || registrationIds.length === 0) {
+        res.status(400).json({ message: "registrationIds must be a non-empty array" });
+        return;
+      }
+
+      // Fetch admin's school_id
+      const adminRow = await pool.query(
+        "SELECT school_id FROM users WHERE id = $1",
+        [adminId]
+      );
+      if (!adminRow.rows[0]?.school_id) {
+        res.status(403).json({ message: "Your account is not linked to a school" });
+        return;
+      }
+      const schoolId: string = adminRow.rows[0].school_id;
+
+      // Load each registration — must belong to a student of this school, be in
+      // 'registered' or 'pending_payment' status, and not already in a paid batch.
+      const regsResult = await pool.query(
+        `SELECT r.id, r.user_id, r.payment_status, r.competition_id,
+                c.registration_fee, u.school_id AS student_school_id
+         FROM registrations r
+         JOIN users u ON u.id = r.user_id
+         JOIN competitions c ON c.id = r.competition_id
+         WHERE r.id = ANY($1::text[])`,
+        [registrationIds]
+      );
+
+      if (regsResult.rows.length !== registrationIds.length) {
+        res.status(404).json({ message: "One or more registrations not found" });
+        return;
+      }
+
+      for (const row of regsResult.rows) {
+        if (row.student_school_id !== schoolId) {
+          res.status(403).json({
+            message: `Registration ${row.id} does not belong to a student in your school`,
+          });
+          return;
+        }
+        if (!["registered", "pending_payment"].includes(row.payment_status)) {
+          res.status(400).json({
+            message: `Registration ${row.id} has status '${row.payment_status}' and cannot be batched`,
+          });
+          return;
+        }
+      }
+
+      const totalAmount: number = regsResult.rows.reduce(
+        (sum: number, r: { registration_fee: number }) => sum + Number(r.registration_fee),
+        0
+      );
+
+      // Fetch admin email for Midtrans customer details
+      const adminEmailRow = await pool.query(
+        "SELECT email, full_name FROM users WHERE id = $1",
+        [adminId]
+      );
+      const adminEmail: string = adminEmailRow.rows[0]?.email ?? "";
+      const adminName: string = adminEmailRow.rows[0]?.full_name ?? "School Admin";
+
+      // Create Midtrans Snap token for the total
+      const orderId = `BATCH-${Date.now()}`;
+      const snapResult = await createSnapToken({
+        orderId,
+        amount: totalAmount,
+        customerName: adminName,
+        customerEmail: adminEmail,
+        competitionName: `School Batch (${registrationIds.length} registrations)`,
+      });
+
+      // Persist the batch
+      const batchResult = await pool.query(
+        `INSERT INTO school_payment_batches
+           (school_id, created_by, total_amount, status, snap_token, snap_redirect_url)
+         VALUES ($1, $2, $3, 'pending', $4, $5)
+         RETURNING id`,
+        [schoolId, adminId, totalAmount, snapResult.snapToken, snapResult.redirectUrl]
+      );
+      const batchId: string = batchResult.rows[0].id;
+
+      // Insert batch items
+      for (const row of regsResult.rows) {
+        await pool.query(
+          `INSERT INTO school_payment_batch_items (batch_id, registration_id, amount)
+           VALUES ($1, $2, $3)`,
+          [batchId, row.id, Number(row.registration_fee)]
+        );
+        // Mark each registration as pending_payment so it can't be double-batched
+        await pool.query(
+          "UPDATE registrations SET payment_status = 'pending_payment' WHERE id = $1",
+          [row.id]
+        );
+      }
+
+      res.status(201).json({
+        batchId,
+        snapToken: snapResult.snapToken,
+        snapRedirectUrl: snapResult.redirectUrl,
+        totalAmount,
+      });
+    } catch (err) {
+      console.error("POST /payments/school-batch error:", err);
+      res.status(500).json({ message: "Failed to create school payment batch" });
+    }
+  }
+);
 
 export default router;

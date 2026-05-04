@@ -144,97 +144,94 @@ EXPO_PUBLIC_API_URL=http://<MAC_LAN_IP>:3000/api
 - `web/components/Sidebar.tsx` — Nav (uses `next/link` + `usePathname`, not React Router)
 - `web/next.config.mjs` — API proxy config (`.ts` version not supported in Next.js 14 — keep `.mjs`)
 
-### Historical Data (Not Yet Imported)
-- 63,365 real participant records from past competitions (Excel file — NOT committed to repo).
-- No NISN in the data. Identity matching: email (88.6% coverage) + WhatsApp (96.9%) + name+school.
-- Sprint 4 handles the full import + claim system.
+### Historical Data (IMPORTED ✅)
+- 63,365 real participant records imported into `historical_participants` table.
+- Excel file lives at `/Users/mujtabo/Desktop/All/Internship Eduversal/beyond-classroom/Eduversal_Database.xlsx` — NOT in the repo.
+- Identity matching: email (88.6% coverage) + WhatsApp/phone (96.9% coverage).
+- Auto-link fires at login (`/me` and `/phone/verify-otp`) — matches email OR phone, skips if already linked.
+- Manual claim via `GET /api/historical/search` + `POST /api/historical/:id/claim`.
+- Mobile: `app/app/(tabs)/profile/history.tsx` — "My Records" tab + "Find & Claim" tab.
+
+### File Storage
+- **Dev (default):** local disk `backend/uploads/<userId>/`, served as static by Express.
+- **Production (MinIO):** set `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET`, `MINIO_PUBLIC_URL` in `backend/.env`. The code automatically switches to S3 when these are set.
+- All three upload routes (users, documents, payments) now use `multer.memoryStorage()` + `storeFile()` from `storage.service.ts`.
+- T21 (MinIO Docker on VPS) is the only remaining infrastructure step before production storage works.
 
 ---
 
-## Current Task Status (as of May 3, 2026)
+## Current Task Status (as of May 4, 2026)
 
-**No implementation tasks started yet.** The plan below was created this session. Next session starts with Sprint 0.
+**Sprints 0–6 fully complete (T1–T22). Sprint 7 in progress (T23 done).**
 
 ### NEXT STEP TO START:
-**Sprint 0, Task 1** — Rename app from "Beyond Classroom" to "Kompetix":
-- `app/app.json`: change `name`, `slug` → `kompetix`, `scheme` → `kompetix`
-- Search all screen files for string "Beyond Classroom" and replace
-- `app/app/(auth)/register.tsx` line ~515: hardcoded `beyondclassroom.id/privacy` URL — update
+**Sprint 7, Task 24** — Add `referral_code` column to registrations:
+- New migration: `ALTER TABLE registrations ADD COLUMN IF NOT EXISTS referral_code TEXT`
+- Capture referral_code from request body in `POST /api/registrations` in `registrations.routes.ts`
 
-**Run in parallel:** Sprint 1 Task 7 — Add `organizer` role (unblocks teammate fastest).
+**Also pending (VPS, do manually):**
+- **T21** — MinIO Docker on VPS: `docker run -d -p 9000:9000 -p 9001:9001 -e MINIO_ROOT_USER=... -e MINIO_ROOT_PASSWORD=... quay.io/minio/minio server /data --console-address :9001`, then set the 5 `MINIO_*` env vars in `backend/.env`.
 
 ---
 
 ## Sprint Plan (Full Roadmap)
 
-### SPRINT 0 — Quick Wins (2–3 days)
-| Task | What | Files |
+### SPRINT 0 — Quick Wins ✅ COMPLETE
+| Task | Status | What |
 |---|---|---|
-| T1 | Rename app "Beyond Classroom" → "Kompetix" | `app/app.json`, all screen files with hardcoded name |
-| T2 | Remove admin screens from mobile — redirect admin users to web portal | `app/app/(tabs)/_layout.tsx`, admin-*.tsx screens |
-| T3 | Fix bulk processor: check fee, email temp pwd, insert school_name | `backend/src/services/bulk-processor.service.ts` |
-| T4 | Fix quota race condition in bulk processor | Same file — use `UPDATE ... RETURNING quota` |
+| T1 | ✅ | Rename app "Beyond Classroom" → "Kompetix" |
+| T2 | ✅ | Remove admin screens from mobile — redirect admin users to web portal |
+| T3 | ✅ | Fix bulk processor: check fee, email temp pwd, insert school_name |
+| T4 | ✅ | Fix quota race condition in bulk processor |
 
-### SPRINT 1 — Critical Backend Foundations (3–5 days)
-| Task | What | Files |
+### SPRINT 1 — Critical Backend Foundations ✅ COMPLETE
+| Task | Status | What |
 |---|---|---|
-| T5 | Add `registration_number` column (`KMP-2026-XXXXX`) | New migration + `registrations.routes.ts` |
-| T6 | Add `profile_snapshot` JSONB column to registrations | New migration + `registrations.routes.ts` |
-| T7 | Add `organizer` role + `organizers` table + `organizerOnly` middleware | New migration + `auth.routes.ts` + new middleware file |
+| T5 | ✅ | Add `registration_number` column (`KMP-2026-XXXXX`) |
+| T6 | ✅ | Add `profile_snapshot` JSONB column to registrations |
+| T7 | ✅ | Add `organizer` role + `organizers` table + `organizerOnly` middleware |
 
-### SPRINT 2 — Organizer Backend Routes (3–5 days) — UNBLOCKS TEAMMATE
-| Task | What | Files |
+### SPRINT 2 — Organizer Backend Routes ✅ COMPLETE
+| Task | Status | What |
 |---|---|---|
-| T8 | Build all 12 organizer endpoints | New file `backend/src/routes/organizer.routes.ts` |
-| | GET /api/organizers/me | |
-| | PUT /api/organizers/me | |
-| | GET/POST /api/organizers/competitions | |
-| | PUT /api/organizers/competitions/:id | |
-| | POST /api/organizers/competitions/:id/publish | |
-| | POST /api/organizers/competitions/:id/close | |
-| | GET /api/organizers/competitions/:id/registrations | |
-| | POST /api/organizers/registrations/:id/approve | |
-| | POST /api/organizers/registrations/:id/reject | |
-| | GET /api/organizers/competitions/:id/export | |
-| | GET /api/organizers/revenue | |
-| | Also: add `created_by UUID FK→users` column to competitions table | |
+| T8 | ✅ | All 12 organizer endpoints in `backend/src/routes/organizer.routes.ts` |
 
-### SPRINT 3 — Payment Fixes (2–3 days)
-| Task | What | Files |
+### SPRINT 3 — Payment Fixes ✅ COMPLETE
+| Task | Status | What |
 |---|---|---|
-| T9 | Post-payment JWT redirect endpoint | `payments.routes.ts`, add `redirect_token` to registrations, add `post_payment_redirect_url` to competitions |
-| T10 | VA expiry: reset registration to `registered` so student can pay again | `payments.routes.ts` webhook handler |
+| T9 | ✅ | Post-payment JWT redirect endpoint (`GET /api/payments/redirect/:registrationId`) |
+| T10 | ✅ | VA expiry: reset registration to `registered` on webhook expire event |
 
-### SPRINT 4 — Historical Data (5–7 days)
-| Task | What | Files |
+### SPRINT 4 — Historical Data ✅ COMPLETE (data imported)
+| Task | Status | What |
 |---|---|---|
-| T11 | Create `historical_participants` table migration | New migration file |
-| T12 | Write Excel import script (normalize, deduplicate, bulk insert 63K rows) | `backend/src/db/import-historical.ts` (new) |
-| T13 | Auto-link historical records at login (email match + phone match) | `auth.routes.ts` — in /me and /phone/verify-otp |
-| T14 | Build claim system API (4 endpoints) | `backend/src/routes/historical.routes.ts` (new) |
+| T11 | ✅ | `historical_participants` table migration — deployed |
+| T12 | ✅ | Excel import script — 63,365 records imported into DB |
+| T13 | ✅ | Auto-link at login (email + phone match, fire-and-forget) |
+| T14 | ✅ | Claim system API: GET /my-records, GET /search, POST /:id/claim, POST /:id/unclaim |
 
-### SPRINT 5 — Mobile Polish (3–5 days)
-| Task | What | Files |
+### SPRINT 5 — Mobile Polish ✅ COMPLETE
+| Task | Status | What |
 |---|---|---|
-| T15 | Add "Recommended for you" section to competitions screen | `app/app/(tabs)/competitions.tsx` |
-| T16 | Show registration_number badge on My Competitions cards | `app/app/(tabs)/my-competitions.tsx` |
-| T17 | Show profile_snapshot + redirect button on registration detail | `app/app/(tabs)/my-registration-details.tsx` |
-| T18 | New screen: Historical records in student profile | `app/app/(tabs)/profile/history.tsx` (new) |
-| T19 | Teacher mobile cleanup — remove bulk CSV, add web banner | `app/app/(tabs)/teacher-actions.tsx` |
-| T20 | Parent pay-for-child: add ownership validation in backend | `backend/src/routes/payments.routes.ts` |
+| T15 | ✅ | "Recommended for you" horizontal scroll in competitions screen (was already implemented) |
+| T16 | ✅ | `KMP-2026-XXXXX` badge on My Competitions cards |
+| T17 | ✅ | Profile snapshot section + "Open Competition Platform" redirect button in competition hub |
+| T18 | ✅ | New screen `profile/history.tsx` — My Records tab + Find & Claim tab |
+| T19 | ✅ | Teacher actions: removed in-app bulk CSV, added web portal banner |
+| T20 | ✅ | `canAccessRegistration()` in payments.routes.ts — parents can pay for linked children |
 
-### SPRINT 6 — File Storage Migration (2–3 days, before launch)
-| Task | What | Files |
+### SPRINT 6 — File Storage Migration ✅ CODE COMPLETE (T21 VPS pending)
+| Task | Status | What |
 |---|---|---|
-| T21 | Set up MinIO on VPS (Docker) | VPS setup |
-| T22 | Migrate storage.service.ts to S3 SDK — switch multer to memoryStorage | `backend/src/services/storage.service.ts`, `payments.routes.ts`, `documents.routes.ts`, `users.routes.ts` |
+| T21 | ⏳ VPS manual | MinIO Docker setup on VPS — see instructions in NEXT STEP section above |
+| T22 | ✅ | `storage.service.ts` rewritten with S3/local dual-mode; multer → memoryStorage in all 3 upload routes |
 
 ### SPRINT 7 — Phase 2 (after Phase 1 launch)
-| Task | What | Files |
-|---|---|---|
-| T23 | school_payment_batches table + bulk pay endpoint | New migration + `payments.routes.ts` |
-| T24 | Add referral_code column to registrations | New migration + `registrations.routes.ts` |
-| T25 | Admin refund endpoint | `admin.routes.ts` |
+| Task | Status | What | Files |
+|---|---|---|---|
+| T23 | ✅ | school_payment_batches table + bulk pay endpoint | `1746300000000_school-payment-batches.sql` + `payments.routes.ts` |
+| T24 | ⬜ | Add referral_code column to registrations | New migration + `registrations.routes.ts` |
+| T25 | ⬜ | Admin refund endpoint | `admin.routes.ts` |
 
 ### Dependency Map
 ```
