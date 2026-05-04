@@ -55,3 +55,4 @@ web/_src-vite-legacy/
 web/_server-legacy/
 web/_index-vite-legacy.html
 web/_vite.config-legacy.ts
+*.tsbuildinfo

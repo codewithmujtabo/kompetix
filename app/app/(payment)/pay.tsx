@@ -157,7 +157,7 @@ export default function PayScreen() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: "images" as const,
         quality: 0.9,
       });
 

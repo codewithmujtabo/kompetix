@@ -147,7 +147,7 @@ export default function ProfileEditScreen() {
 
   async function handlePickPhoto() {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: "images" as const,
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -170,7 +170,7 @@ export default function ProfileEditScreen() {
 
   async function handlePickStudentCard() {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: "images" as const,
       allowsEditing: false,
       quality: 0.9,
     });

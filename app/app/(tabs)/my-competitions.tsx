@@ -175,7 +175,7 @@ export default function MyCompetitionsScreen() {
       }
 
       const picked = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: "images" as const,
         quality: 0.9,
       });
 
