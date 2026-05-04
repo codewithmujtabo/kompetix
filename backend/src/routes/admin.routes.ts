@@ -3,6 +3,7 @@ import { pool } from "../config/database";
 import { adminOnly } from "../middleware/admin.middleware";
 import { authMiddleware } from "../middleware/auth";
 import * as pushService from "../services/push.service";
+import { refundPayment } from "../services/midtrans.service";
 
 const router = Router();
 
@@ -974,6 +975,74 @@ router.post("/notifications/broadcast", async (req, res) => {
   } catch (err) {
     console.error("Broadcast notification error:", err);
     res.status(500).json({ message: "Failed to send notifications" });
+  }
+});
+
+// ── POST /api/admin/payments/:id/refund ──────────────────────────────────────
+// Issues a Midtrans refund for a settled payment and marks the registration refunded.
+// Body: { reason?: string }
+router.post("/payments/:id/refund", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const reason: string = req.body?.reason || "Admin-initiated refund";
+
+    // Load payment + linked registration
+    const paymentResult = await pool.query(
+      `SELECT p.id, p.payment_id, p.amount, p.payment_status, p.registration_id,
+              r.status AS reg_status
+       FROM payments p
+       JOIN registrations r ON r.id = p.registration_id
+       WHERE p.id = $1`,
+      [id]
+    );
+
+    if (paymentResult.rows.length === 0) {
+      res.status(404).json({ message: "Payment not found" });
+      return;
+    }
+
+    const payment = paymentResult.rows[0];
+
+    if (payment.payment_status === "refunded") {
+      res.status(409).json({ message: "Payment has already been refunded" });
+      return;
+    }
+
+    if (payment.payment_status !== "paid") {
+      res.status(400).json({
+        message: `Cannot refund a payment with status '${payment.payment_status}'. Only paid payments can be refunded.`,
+      });
+      return;
+    }
+
+    if (!payment.payment_id) {
+      res.status(400).json({ message: "No Midtrans order ID on record for this payment" });
+      return;
+    }
+
+    // Call Midtrans refund API
+    const refundResult = await refundPayment(payment.payment_id, payment.amount, reason);
+
+    // Update payment and registration status
+    await pool.query(
+      "UPDATE payments SET payment_status = 'refunded', updated_at = now() WHERE id = $1",
+      [id]
+    );
+    await pool.query(
+      "UPDATE registrations SET payment_status = 'refunded', status = 'refunded', updated_at = now() WHERE id = $1",
+      [payment.registration_id]
+    );
+
+    res.json({
+      message: "Refund issued successfully",
+      refundKey: refundResult.refundKey,
+      refundStatus: refundResult.status,
+      refundAmount: refundResult.refundAmount,
+    });
+  } catch (err: unknown) {
+    console.error("POST /admin/payments/:id/refund error:", err);
+    const msg = err instanceof Error ? err.message : "Failed to process refund";
+    res.status(500).json({ message: msg });
   }
 });
 

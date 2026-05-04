@@ -8,6 +8,13 @@ const snap = new midtransClient.Snap({
   clientKey: env.MIDTRANS_CLIENT_KEY,
 });
 
+// Core API is used for server-side operations like refunds
+const coreApi = new midtransClient.CoreApi({
+  isProduction: env.MIDTRANS_IS_PRODUCTION,
+  serverKey: env.MIDTRANS_SERVER_KEY,
+  clientKey: env.MIDTRANS_CLIENT_KEY,
+});
+
 const DEEP_LINK_BASE = "kompetix://payment";
 
 export interface SnapTokenResult {
@@ -58,5 +65,40 @@ export async function createSnapToken(params: {
   return {
     snapToken: response.token,
     redirectUrl: response.redirect_url,
+  };
+}
+
+export interface RefundResult {
+  refundKey: string;
+  status: string;
+  refundAmount: number;
+}
+
+/**
+ * Issue a refund for a settled Midtrans transaction.
+ * Works for GoPay, OVO, Dana, and credit card (online refund).
+ * Bank transfer / VA refunds are offline and cannot be automated — this will throw.
+ */
+export async function refundPayment(
+  orderId: string,
+  amount: number,
+  reason: string
+): Promise<RefundResult> {
+  if (!env.MIDTRANS_SERVER_KEY) {
+    throw new Error("MIDTRANS_SERVER_KEY is not configured");
+  }
+
+  const refundKey = `${orderId}-refund-${Date.now()}`;
+  // midtrans-client has no TS types for transaction — cast to any
+  const response = await (coreApi as any).transaction.refund(orderId, {
+    refund_key: refundKey,
+    amount,
+    reason,
+  });
+
+  return {
+    refundKey,
+    status: response.transaction_status ?? "unknown",
+    refundAmount: Number(response.refund_amount ?? amount),
   };
 }
