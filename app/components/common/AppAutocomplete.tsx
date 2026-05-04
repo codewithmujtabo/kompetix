@@ -51,8 +51,8 @@ export function AppAutocomplete({
   const [suggestions, setSuggestions] = useState<AutocompleteItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectingRef = useRef(false);
   const inputRef = useRef<TextInput | null>(null);
 

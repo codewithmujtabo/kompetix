@@ -34,7 +34,7 @@ export default function BulkRegistrationScreen() {
   const [isUploading, setIsUploading] = useState(false);
   const [currentJob, setCurrentJob] = useState<BulkJob | null>(null);
   const [jobs, setJobs] = useState<BulkJob[]>([]);
-  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
+  const [pollingInterval, setPollingInterval] = useState<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     fetchJobs();

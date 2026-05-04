@@ -25,13 +25,13 @@ const queryClient = new QueryClient({
   },
 });
 
-Text.defaultProps = Text.defaultProps || {};
-Text.defaultProps.allowFontScaling = false;
-Text.defaultProps.maxFontSizeMultiplier = 1;
+(Text as any).defaultProps = (Text as any).defaultProps || {};
+(Text as any).defaultProps.allowFontScaling = false;
+(Text as any).defaultProps.maxFontSizeMultiplier = 1;
 
-TextInput.defaultProps = TextInput.defaultProps || {};
-TextInput.defaultProps.allowFontScaling = false;
-TextInput.defaultProps.maxFontSizeMultiplier = 1;
+(TextInput as any).defaultProps = (TextInput as any).defaultProps || {};
+(TextInput as any).defaultProps.allowFontScaling = false;
+(TextInput as any).defaultProps.maxFontSizeMultiplier = 1;
 
 function RootLayout() {
   return (

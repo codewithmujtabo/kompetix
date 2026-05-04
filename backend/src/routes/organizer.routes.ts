@@ -216,7 +216,7 @@ router.post("/competitions", async (req: Request, res: Response) => {
 router.put("/competitions/:id", async (req: Request, res: Response) => {
   const client = await pool.connect();
   try {
-    if (!await ownsCompetition(req.params.id, req.userId!, (req as any).userRole)) {
+    if (!await ownsCompetition(req.params.id as string, req.userId!, (req as any).userRole)) {
       res.status(403).json({ message: "You do not own this competition" });
       return;
     }
@@ -291,7 +291,7 @@ router.put("/competitions/:id", async (req: Request, res: Response) => {
 // ── POST /api/organizers/competitions/:id/publish ─────────────────────────
 router.post("/competitions/:id/publish", async (req: Request, res: Response) => {
   try {
-    if (!await ownsCompetition(req.params.id, req.userId!, (req as any).userRole)) {
+    if (!await ownsCompetition(req.params.id as string, req.userId!, (req as any).userRole)) {
       res.status(403).json({ message: "You do not own this competition" });
       return;
     }
@@ -319,7 +319,7 @@ router.post("/competitions/:id/publish", async (req: Request, res: Response) => 
 // ── POST /api/organizers/competitions/:id/close ───────────────────────────
 router.post("/competitions/:id/close", async (req: Request, res: Response) => {
   try {
-    if (!await ownsCompetition(req.params.id, req.userId!, (req as any).userRole)) {
+    if (!await ownsCompetition(req.params.id as string, req.userId!, (req as any).userRole)) {
       res.status(403).json({ message: "You do not own this competition" });
       return;
     }
@@ -347,7 +347,7 @@ router.post("/competitions/:id/close", async (req: Request, res: Response) => {
 // ── GET /api/organizers/competitions/:id/registrations ────────────────────
 router.get("/competitions/:id/registrations", async (req: Request, res: Response) => {
   try {
-    if (!await ownsCompetition(req.params.id, req.userId!, (req as any).userRole)) {
+    if (!await ownsCompetition(req.params.id as string, req.userId!, (req as any).userRole)) {
       res.status(403).json({ message: "You do not own this competition" });
       return;
     }
@@ -528,7 +528,7 @@ router.post("/registrations/:id/reject", async (req: Request, res: Response) => 
 // ── GET /api/organizers/competitions/:id/export ───────────────────────────
 router.get("/competitions/:id/export", async (req: Request, res: Response) => {
   try {
-    if (!await ownsCompetition(req.params.id, req.userId!, (req as any).userRole)) {
+    if (!await ownsCompetition(req.params.id as string, req.userId!, (req as any).userRole)) {
       res.status(403).json({ message: "You do not own this competition" });
       return;
     }

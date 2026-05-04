@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Dimensions,
   ActivityIndicator,
   TouchableOpacity,
 } from "react-native";
@@ -12,7 +11,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { Brand } from "@/constants/theme";
-import { VictoryBar, VictoryChart, VictoryPie, VictoryAxis } from "victory-native";
 import {
   getRegistrationsByMonth,
   getCategoryDistribution,
@@ -21,7 +19,6 @@ import {
   getKeyMetrics,
 } from "@/services/teachers.service";
 
-const screenWidth = Dimensions.get("window").width;
 
 export default function TeacherAnalyticsScreen() {
   const router = useRouter();
@@ -114,35 +111,21 @@ export default function TeacherAnalyticsScreen() {
           <Text style={styles.chartSubtitle}>Track participation trends over time</Text>
 
           {registrationsByMonth && registrationsByMonth.length > 0 ? (
-            <VictoryChart
-              width={screenWidth - 64}
-              height={220}
-              domainPadding={{ x: 30 }}
-            >
-              <VictoryAxis
-                style={{
-                  axis: { stroke: "#E2E8F0" },
-                  tickLabels: { fontSize: 12, fill: "#64748B" },
-                }}
-              />
-              <VictoryAxis
-                dependentAxis
-                style={{
-                  axis: { stroke: "#E2E8F0" },
-                  tickLabels: { fontSize: 12, fill: "#64748B" },
-                  grid: { stroke: "#F1F5F9" },
-                }}
-              />
-              <VictoryBar
-                data={registrationsByMonth}
-                x="month"
-                y="count"
-                style={{
-                  data: { fill: Brand.primary },
-                }}
-                cornerRadius={{ top: 6 }}
-              />
-            </VictoryChart>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={{ flexDirection: "row", alignItems: "flex-end", paddingBottom: 24, gap: 8 }}>
+                {registrationsByMonth.map((item: { month: string; count: number }) => {
+                  const maxVal = Math.max(...registrationsByMonth.map((r: { count: number }) => r.count), 1);
+                  const barHeight = Math.max((item.count / maxVal) * 160, 4);
+                  return (
+                    <View key={item.month} style={{ alignItems: "center", width: 40 }}>
+                      <Text style={{ fontSize: 10, color: "#64748B", marginBottom: 4 }}>{item.count}</Text>
+                      <View style={{ width: 32, height: barHeight, backgroundColor: Brand.primary, borderRadius: 4 }} />
+                      <Text style={{ fontSize: 9, color: "#94A3B8", marginTop: 4 }}>{item.month}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </ScrollView>
           ) : (
             <View style={styles.emptyChart}>
               <Text style={styles.emptyText}>No data available</Text>
@@ -156,36 +139,22 @@ export default function TeacherAnalyticsScreen() {
           <Text style={styles.chartSubtitle}>Distribution by category type</Text>
 
           {competitionCategories && competitionCategories.length > 0 ? (
-            <>
-              <View style={styles.pieContainer}>
-                <VictoryPie
-                  data={competitionCategories}
-                  x="category"
-                  y="count"
-                  width={screenWidth - 64}
-                  height={240}
-                  colorScale={competitionCategories.map((c) => c.color)}
-                  style={{
-                    labels: { fontSize: 12, fill: "#1E293B", fontWeight: "600" },
-                  }}
-                  labelRadius={({ index }) => 80 - index * 5}
-                />
-              </View>
-
-              {/* Legend */}
-              <View style={styles.legend}>
-                {competitionCategories.map((item) => (
-                  <View key={item.category} style={styles.legendItem}>
-                    <View
-                      style={[styles.legendDot, { backgroundColor: item.color }]}
-                    />
-                    <Text style={styles.legendText}>
-                      {item.category} ({item.count})
-                    </Text>
+            <View style={{ gap: 8 }}>
+              {competitionCategories.map((item: { category: string; count: number; color: string }) => {
+                const total = competitionCategories.reduce((s: number, c: { count: number }) => s + c.count, 0);
+                const pct = total > 0 ? Math.round((item.count / total) * 100) : 0;
+                return (
+                  <View key={item.category} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: item.color }} />
+                    <Text style={{ flex: 1, fontSize: 13, color: "#334155" }}>{item.category}</Text>
+                    <View style={{ flex: 2, height: 12, backgroundColor: "#F1F5F9", borderRadius: 6, overflow: "hidden" }}>
+                      <View style={{ width: `${pct}%`, height: "100%", backgroundColor: item.color, borderRadius: 6 }} />
+                    </View>
+                    <Text style={{ width: 36, fontSize: 12, color: "#64748B", textAlign: "right" }}>{item.count}</Text>
                   </View>
-                ))}
-              </View>
-            </>
+                );
+              })}
+            </View>
           ) : (
             <View style={styles.emptyChart}>
               <Text style={styles.emptyText}>No category data available</Text>
@@ -199,7 +168,7 @@ export default function TeacherAnalyticsScreen() {
           <Text style={styles.chartSubtitle}>Which grades are most active</Text>
 
           {gradeParticipation && gradeParticipation.length > 0 ? (
-            gradeParticipation.map((item, index) => {
+            gradeParticipation.map((item: { grade: string; count: number }, index: number) => {
               const maxCount = Math.max(...gradeParticipation.map((g) => g.count));
               return (
                 <View key={item.grade} style={styles.progressRow}>

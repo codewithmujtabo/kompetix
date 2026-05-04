@@ -205,7 +205,7 @@ export default function DiscoverScreen() {
         const filterConfig = GRADE_FILTERS.find(f => f.label === gradeFilter);
         if (filterConfig) {
           const hasMatchingGrade = compGrades.some(grade =>
-            filterConfig.grades.includes(grade as any)
+            (filterConfig.grades as readonly string[]).includes(grade)
           );
           if (!hasMatchingGrade) return false;
         }

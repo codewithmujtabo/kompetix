@@ -19,8 +19,8 @@ export function usePushNotifications(options?: {
   const [notification, setNotification] = useState<Notifications.Notification | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const notificationListener = useRef<Notifications.Subscription>();
-  const responseListener = useRef<Notifications.Subscription>();
+  const notificationListener = useRef<Notifications.Subscription | undefined>(undefined);
+  const responseListener = useRef<Notifications.Subscription | undefined>(undefined);
 
   useEffect(() => {
     // Request permissions and get token
@@ -47,7 +47,7 @@ export function usePushNotifications(options?: {
 
     // T5.3 — Listener for when user taps a notification
     responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response.notification.request.content.data;
+      const data = response.notification.request.content.data as Record<string, any>;
       console.log("Notification tapped:", data);
 
       // Call the callback if provided (T5.4, T5.5)
@@ -120,7 +120,7 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
   // For production: run `npx expo init` or add projectId to app.json:
   // "extra": { "eas": { "projectId": "your-project-id" } }
   try {
-    const tokenData = await Notifications.getExpoPushTokenAsync();
+    const tokenData = await Notifications.getExpoPushTokenAsync({} as any);
     token = tokenData.data;
   } catch (error: any) {
     // Push notifications not available - this is expected in Expo Go
@@ -141,7 +141,7 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
-  }),
+  } as any),
 });
 
 /**

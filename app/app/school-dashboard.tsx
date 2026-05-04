@@ -67,7 +67,7 @@ export default function SchoolDashboardScreen() {
   });
 
   // Fetch students
-  const { data: studentsData, isLoading: studentsLoading } = useQuery({
+  const { data: studentsData, isLoading: studentsLoading } = useQuery<{ students: Student[]; pagination: { total: number; page: number; totalPages: number } }>({
     queryKey: ["schoolStudents", searchQuery, gradeFilter],
     queryFn: () => {
       const params = new URLSearchParams();
@@ -78,7 +78,7 @@ export default function SchoolDashboardScreen() {
   });
 
   // Fetch registrations
-  const { data: registrationsData, isLoading: registrationsLoading } = useQuery({
+  const { data: registrationsData, isLoading: registrationsLoading } = useQuery<{ registrations: Registration[]; pagination?: { total: number; page: number; totalPages: number } }>({
     queryKey: ["schoolRegistrations"],
     queryFn: () => apiRequest("/schools/registrations"),
   });

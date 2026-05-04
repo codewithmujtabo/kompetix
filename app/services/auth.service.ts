@@ -12,6 +12,7 @@ export async function signup(params: {
   fullName: string;
   phone: string;
   city: string;
+  province?: string;
   role: string;
   roleData: any;
   consentAccepted: boolean;

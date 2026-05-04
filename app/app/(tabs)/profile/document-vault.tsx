@@ -1,5 +1,6 @@
 import { Brand } from "@/constants/theme";
 import { useUser } from "@/context/AuthContext";
+import { useRouter } from "expo-router";
 import * as documentService from "@/services/document.service";
 import * as TokenService from "@/services/token.service";
 import { API_BASE_URL } from "@/config/api";
@@ -94,6 +95,7 @@ async function uploadFileXHR(
 export default function DocumentVaultScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useUser();
+  const router = useRouter();
 
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
