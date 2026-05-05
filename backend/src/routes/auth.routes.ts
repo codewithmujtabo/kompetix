@@ -325,7 +325,17 @@ router.post("/phone/verify-otp", otpVerifyLimiter, async (req: Request, res: Res
     );
 
     if (result.rows.length === 0) {
-      // No account yet — return a signal so the frontend can redirect to signup
+      // Check historical_participants — if this phone was in a past competition, pre-fill signup
+      const histResult = await pool.query(
+        `SELECT full_name, email FROM historical_participants WHERE phone = $1 LIMIT 1`,
+        [e164]
+      );
+      if (histResult.rows.length > 0) {
+        const { full_name, email } = histResult.rows[0];
+        res.json({ historicalMatch: true, fullName: full_name, email: email ?? "", phone: e164 });
+        return;
+      }
+      // No account and no historical match
       res.status(404).json({ message: "NO_ACCOUNT", phone: e164 });
       return;
     }

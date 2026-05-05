@@ -71,15 +71,16 @@ export async function sendPhoneOtp(phone: string): Promise<void> {
 export async function verifyPhoneOtp(
   phone: string,
   code: string
-): Promise<AuthResponse | { noAccount: true; phone: string }> {
+): Promise<AuthResponse | { noAccount: true; phone: string } | { historicalMatch: true; phone: string; fullName: string; email: string }> {
   try {
-    const data = await apiRequest<AuthResponse>("/auth/phone/verify-otp", {
+    const data = await apiRequest<AuthResponse | { historicalMatch: true; phone: string; fullName: string; email: string }>("/auth/phone/verify-otp", {
       method: "POST",
       body: { phone, code },
       auth: false,
     });
-    await setToken(data.token);
-    return data;
+    if ("historicalMatch" in data) return data;
+    await setToken((data as AuthResponse).token);
+    return data as AuthResponse;
   } catch (err: any) {
     if (err.message === "NO_ACCOUNT") {
       return { noAccount: true, phone };

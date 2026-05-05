@@ -40,6 +40,26 @@ export interface Pagination {
   totalPages: number;
 }
 
+export interface PendingRegistration {
+  registrationId: string;
+  status: string;
+  registeredAt: string;
+  student: {
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    school: string;
+    grade: string;
+    nisn: string;
+  };
+  competition: {
+    id: string;
+    name: string;
+    fee: number;
+  };
+}
+
 export interface AuthUser {
   id: string;
   email: string;

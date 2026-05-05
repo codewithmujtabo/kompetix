@@ -20,6 +20,7 @@ import React, {
 export type { AppUser };
 
 export type RegistrationStatus =
+  | "pending_approval"
   | "registered"
   | "pending_review"
   | "approved"

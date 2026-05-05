@@ -1,15 +1,12 @@
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { Router, Request, Response } from "express";
-import multer from "multer";
-import path from "path";
 import { pool } from "../config/database";
 import { env } from "../config/env";
 import { authMiddleware } from "../middleware/auth";
 import { schoolAdminOnly } from "../middleware/school-admin.middleware";
 import { createSnapToken } from "../services/midtrans.service";
 import * as pushService from "../services/push.service";
-import { storeFile } from "../services/storage.service";
 
 const router = Router();
 
@@ -115,8 +112,13 @@ router.post("/webhook", async (req: Request, res: Response) => {
       console.log(`Payment expired: order=${order_id} — registration ${registration_id} reset to 'registered'`);
     }
 
-    // ── Notify student to upload proof after payment ───────────────────────
+    // ── Mark registration as paid and notify student ───────────────────────
     if (isSuccess) {
+      await pool.query(
+        `UPDATE registrations SET status = 'paid', updated_at = now() WHERE id = $1`,
+        [registration_id]
+      );
+
       const regResult = await pool.query(
         `SELECT r.user_id, r.comp_id, c.name as comp_name
          FROM registrations r
@@ -130,8 +132,8 @@ router.post("/webhook", async (req: Request, res: Response) => {
 
         await pushService.sendPushNotification(
           user_id,
-          "Payment Recorded",
-          `Your payment for ${comp_name} was recorded. Upload your screenshot or receipt so admin can review your application.`,
+          "Payment Confirmed!",
+          `Your payment for ${comp_name} has been confirmed. Your spot is secured!`,
           {
             type: "payment_success",
             compId: comp_id,
@@ -153,75 +155,6 @@ router.post("/webhook", async (req: Request, res: Response) => {
 
 // All routes below require auth ───────────────────────────────────────────────
 router.use(authMiddleware);
-
-// ── POST /api/payments/manual-intent ─────────────────────────────────────────
-router.post("/manual-intent", async (req: Request, res: Response) => {
-  try {
-    const { registrationId } = req.body;
-
-    if (!registrationId) {
-      res.status(400).json({ message: "registrationId is required" });
-      return;
-    }
-
-    const allowed = await canAccessRegistration(req.userId!, registrationId);
-    if (!allowed) {
-      res.status(404).json({ message: "Registration not found" });
-      return;
-    }
-
-    const registrationResult = await pool.query(
-      `SELECT
-         r.id,
-         r.status,
-         r.user_id,
-         c.fee,
-         c.name as competition_name
-       FROM registrations r
-       JOIN competitions c ON c.id = r.comp_id
-       WHERE r.id = $1`,
-      [registrationId]
-    );
-
-    if (registrationResult.rows.length === 0) {
-      res.status(404).json({ message: "Registration not found" });
-      return;
-    }
-
-    const registration = registrationResult.rows[0];
-
-    if (registration.fee === 0) {
-      res.status(400).json({ message: "This competition does not require payment" });
-      return;
-    }
-
-    const existingPayment = await pool.query(
-      `SELECT id, amount, payment_status, payment_proof_url
-       FROM payments
-       WHERE registration_id = $1
-       ORDER BY created_at DESC
-       LIMIT 1`,
-      [registrationId]
-    );
-
-    if (existingPayment.rows.length > 0) {
-      res.json({
-        paymentId: existingPayment.rows[0].id,
-        amount: existingPayment.rows[0].amount,
-        paymentStatus: existingPayment.rows[0].payment_status,
-        proofUrl: existingPayment.rows[0].payment_proof_url,
-      });
-      return;
-    }
-
-    res.status(400).json({
-      message: "Complete the Midtrans payment first, then upload your screenshot or receipt.",
-    });
-  } catch (err: any) {
-    console.error("Create manual payment intent error:", err);
-    res.status(500).json({ message: err.message || "Failed to create payment intent" });
-  }
-});
 
 // ── POST /api/payments/snap ───────────────────────────────────────────────────
 router.post("/snap", async (req: Request, res: Response) => {
@@ -272,8 +205,8 @@ router.post("/snap", async (req: Request, res: Response) => {
       return;
     }
 
-    if (row.reg_status === "pending_review") {
-      res.status(400).json({ message: "Payment proof already submitted and awaiting review" });
+    if (row.reg_status === "pending_approval") {
+      res.status(400).json({ message: "Your registration is awaiting admin approval. Payment will be available once approved." });
       return;
     }
 
@@ -331,120 +264,6 @@ router.post("/snap", async (req: Request, res: Response) => {
   }
 });
 
-// ── Multer config for payment proof uploads (memory storage — works with local disk and S3) ──
-const uploadProof = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
-  fileFilter: (_req, file, cb) => {
-    const allowed = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
-    if (allowed.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error("Only PDF, JPG, and PNG files are allowed"));
-    }
-  },
-});
-
-// ── POST /api/payments/:paymentId/upload-proof ───────────────────────────────
-router.post(
-  "/:paymentId/upload-proof",
-  uploadProof.single("proof"),
-  async (req: Request, res: Response) => {
-    try {
-      const userId = req.userId!;
-      const { paymentId } = req.params;
-      const file = req.file;
-
-      if (!file) {
-        res.status(400).json({ message: "No proof file uploaded" });
-        return;
-      }
-
-      // Verify payment exists and belongs to user
-      const paymentResult = await pool.query(
-        `SELECT p.*, r.comp_id, c.name as competition_name
-         FROM payments p
-         JOIN registrations r ON p.registration_id = r.id
-         JOIN competitions c ON r.comp_id = c.id
-         WHERE p.id = $1 AND p.user_id = $2`,
-        [paymentId, userId]
-      );
-
-      if (paymentResult.rows.length === 0) {
-        res.status(404).json({ message: "Payment not found" });
-        return;
-      }
-
-      const payment = paymentResult.rows[0];
-      const ext = path.extname(file.originalname);
-      const base = path.basename(file.originalname, ext).replace(/[^a-z0-9]/gi, "_").toLowerCase().slice(0, 40);
-      const filename = `proof-${Date.now()}-${base}${ext}`;
-      const fileUrl = await storeFile(userId, file.buffer, filename, file.mimetype);
-
-      // Update payment with proof URL
-      await pool.query(
-        `UPDATE payments
-         SET payment_proof_url = $1, proof_submitted_at = now()
-         WHERE id = $2`,
-        [fileUrl, paymentId]
-      );
-
-      // Update registration status to pending_review
-      await pool.query(
-        `UPDATE registrations
-         SET status = 'pending_review', updated_at = now()
-         WHERE id = $1`,
-        [payment.registration_id]
-      );
-
-      // Send notification to user
-      await pool.query(
-        `INSERT INTO notifications (user_id, type, title, body, data)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [
-          userId,
-          "proof_submitted",
-          "Payment Proof Submitted",
-          `Your payment proof for ${payment.competition_name} is under review. We'll notify you once it's verified.`,
-          JSON.stringify({
-            compId: payment.comp_id,
-            registrationId: payment.registration_id,
-          }),
-        ]
-      );
-
-      const parentIds = await pushService.getActiveParentIdsForStudent(userId);
-      if (parentIds.length > 0) {
-        const studentResult = await pool.query(
-          "SELECT full_name FROM users WHERE id = $1",
-          [userId]
-        );
-        const studentName = studentResult.rows[0]?.full_name || "Your child";
-
-        await pushService.sendBatchNotifications(
-          parentIds,
-          "Child Submitted Payment Proof",
-          `${studentName} submitted payment proof for ${payment.competition_name}. The application is now under review.`,
-          {
-            type: "child_payment_proof_submitted",
-            compId: payment.comp_id,
-            registrationId: payment.registration_id,
-            studentId: userId,
-          }
-        );
-      }
-
-      res.json({
-        message: "Payment proof uploaded successfully",
-        proofUrl: fileUrl,
-        status: "pending_review",
-      });
-    } catch (err: any) {
-      console.error("Upload proof error:", err);
-      res.status(500).json({ message: err.message || "Failed to upload proof" });
-    }
-  }
-);
 
 // ── GET /api/payments/redirect/:registrationId ───────────────────────────────
 // T9: Returns a short-lived redirect URL (1 h JWT) for the organizer's post-payment page.
@@ -507,38 +326,6 @@ router.get("/redirect/:registrationId", async (req: Request, res: Response) => {
   } catch (err) {
     console.error("GET /payments/redirect/:registrationId error:", err);
     res.status(500).json({ message: "Failed to generate redirect URL" });
-  }
-});
-
-// ── GET /api/payments/:paymentId/proof ───────────────────────────────────────
-router.get("/:paymentId/proof", async (req: Request, res: Response) => {
-  try {
-    const userId = req.userId!;
-    const userRole = req.userRole;
-    const { paymentId } = req.params;
-
-    const result = await pool.query(
-      "SELECT payment_proof_url, user_id FROM payments WHERE id = $1",
-      [paymentId]
-    );
-
-    if (result.rows.length === 0) {
-      res.status(404).json({ message: "Payment not found" });
-      return;
-    }
-
-    const payment = result.rows[0];
-
-    // Only owner or admin can view proof
-    if (payment.user_id !== userId && userRole !== "admin") {
-      res.status(403).json({ message: "Access denied" });
-      return;
-    }
-
-    res.json({ proofUrl: payment.payment_proof_url });
-  } catch (err) {
-    console.error("Get proof error:", err);
-    res.status(500).json({ message: "Failed to get proof" });
   }
 });
 

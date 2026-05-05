@@ -5,11 +5,12 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/context';
 
 const NAV = [
-  { href: '/dashboard',     label: 'Dashboard',         icon: '▦',  exact: true },
-  { href: '/competitions',  label: 'Competitions',      icon: '🏆' },
-  { href: '/notifications', label: 'Send Notification', icon: '📣' },
-  { href: '/schools',       label: 'Schools',           icon: '🏫' },
-  { href: '/users',         label: 'Users',             icon: '👥' },
+  { href: '/dashboard',       label: 'Dashboard',         icon: '▦',  exact: true },
+  { href: '/registrations',   label: 'Registrations',     icon: '📋' },
+  { href: '/competitions',    label: 'Competitions',      icon: '🏆' },
+  { href: '/notifications',   label: 'Send Notification', icon: '📣' },
+  { href: '/schools',         label: 'Schools',           icon: '🏫' },
+  { href: '/users',           label: 'Users',             icon: '👥' },
 ];
 
 export default function Sidebar({ children }: { children: React.ReactNode }) {

@@ -134,6 +134,13 @@ export default function LoginScreen() {
         );
         return;
       }
+      if ("historicalMatch" in result) {
+        router.push({
+          pathname: "/(auth)/claim-account",
+          params: { phone: result.phone, fullName: result.fullName, email: result.email },
+        });
+        return;
+      }
       if (result.user) onSuccess(result.user);
     } catch (err: any) {
       Alert.alert("Error", err?.message || "Invalid OTP. Try again.");

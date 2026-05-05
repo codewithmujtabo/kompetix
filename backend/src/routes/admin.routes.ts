@@ -541,22 +541,17 @@ router.get("/registrations/pending", async (req, res) => {
         s.nisn,
         c.id as competition_id,
         c.name as competition_name,
-        c.fee,
-        p.id as payment_id,
-        p.payment_proof_url,
-        p.proof_submitted_at,
-        p.amount as paid_amount
+        c.fee
       FROM registrations r
       JOIN users u ON r.user_id = u.id
       LEFT JOIN students s ON u.id = s.id
       JOIN competitions c ON r.comp_id = c.id
-      LEFT JOIN payments p ON r.id = p.registration_id
-      WHERE r.status = 'pending_review'
-      ORDER BY p.proof_submitted_at DESC NULLS LAST, r.created_at DESC`
+      WHERE r.status = 'pending_approval'
+      ORDER BY r.created_at DESC`
     );
 
     res.json({
-      pendingReviews: result.rows.map((row) => ({
+      pendingRegistrations: result.rows.map((row) => ({
         registrationId: row.registration_id,
         status: row.status,
         registeredAt: row.registered_at,
@@ -575,17 +570,11 @@ router.get("/registrations/pending", async (req, res) => {
           name: row.competition_name,
           fee: row.fee,
         },
-        payment: {
-          id: row.payment_id,
-          proofUrl: row.payment_proof_url,
-          proofSubmittedAt: row.proof_submitted_at,
-          amount: row.paid_amount,
-        },
       })),
     });
   } catch (err) {
-    console.error("Get pending reviews error:", err);
-    res.status(500).json({ message: "Failed to fetch pending reviews" });
+    console.error("Get pending registrations error:", err);
+    res.status(500).json({ message: "Failed to fetch pending registrations" });
   }
 });
 
@@ -638,7 +627,7 @@ router.post("/registrations/:id/approve", async (req, res) => {
 
     // Get registration details for notification
     const regResult = await pool.query(
-      `SELECT r.user_id, c.name as competition_name, u.full_name as student_name
+      `SELECT r.user_id, c.name as competition_name, c.fee, u.full_name as student_name
        FROM registrations r
        JOIN competitions c ON r.comp_id = c.id
        JOIN users u ON r.user_id = u.id
@@ -651,18 +640,24 @@ router.post("/registrations/:id/approve", async (req, res) => {
       return;
     }
 
-    const { user_id, competition_name } = regResult.rows[0];
+    const { user_id, competition_name, fee } = regResult.rows[0];
+    // Free → confirmed immediately; paid → student must complete payment
+    const newStatus = fee === 0 ? "paid" : "registered";
 
     // Update registration status
     await pool.query(
       `UPDATE registrations
-       SET status = 'approved',
-           reviewed_by = $1,
+       SET status = $1,
+           reviewed_by = $2,
            reviewed_at = now(),
            updated_at = now()
-       WHERE id = $2`,
-      [adminId, id]
+       WHERE id = $3`,
+      [newStatus, adminId, id]
     );
+
+    const notifBody = fee === 0
+      ? `Congratulations! Your registration for ${competition_name} has been approved. You're all set!`
+      : `Your registration for ${competition_name} has been approved. Please complete the payment to secure your spot.`;
 
     // Send approval notification to student
     await pool.query(
@@ -671,11 +666,16 @@ router.post("/registrations/:id/approve", async (req, res) => {
       [
         user_id,
         "registration_approved",
-        "🎉 Registration Approved!",
-        `Congratulations! Your registration for ${competition_name} has been approved. You're all set for the competition!`,
+        "Registration Approved!",
+        notifBody,
         JSON.stringify({ registrationId: id }),
       ]
     );
+
+    await pushService.sendPushNotification(user_id, "Registration Approved!", notifBody, {
+      type: "registration_approved",
+      registrationId: id,
+    });
 
     const parentIds = await pushService.getActiveParentIdsForStudent(user_id);
     if (parentIds.length > 0) {
@@ -688,7 +688,7 @@ router.post("/registrations/:id/approve", async (req, res) => {
       await pushService.sendBatchNotifications(
         parentIds,
         "Child Registration Approved",
-        `${studentName}'s registration for ${competition_name} has been approved.`,
+        `${studentName}'s registration for ${competition_name} has been approved.${fee > 0 ? " Payment required." : ""}`,
         {
           type: "child_registration_approved",
           registrationId: id,
@@ -699,7 +699,7 @@ router.post("/registrations/:id/approve", async (req, res) => {
 
     res.json({
       message: "Registration approved successfully",
-      status: "approved",
+      status: newStatus,
     });
   } catch (err) {
     console.error("Approve registration error:", err);

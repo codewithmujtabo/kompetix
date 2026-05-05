@@ -1,7 +1,6 @@
 import { Brand, CategoryAccent, CategoryBg, CategoryEmoji } from "@/constants/theme";
 import { useUser, type Registration } from "@/context/AuthContext";
 import { useFocusEffect, useRouter } from "expo-router";
-import * as ImagePicker from "expo-image-picker";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
@@ -14,18 +13,17 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as favoritesService from "@/services/favorites.service";
-import * as paymentsService from "@/services/payments.service";
 import type { Favorite } from "@/services/favorites.service";
 
 const TABS = ["Saved", "Applications", "Joined"] as const;
 type TabType = (typeof TABS)[number];
 
 const STATUS_CFG: Record<string, { label: string; bg: string; color: string }> = {
-  registered: { label: "Payment Needed", bg: "#FEF3C7", color: "#92400E" },
-  pending_review: { label: "Under Review", bg: "#DBEAFE", color: "#1D4ED8" },
-  approved: { label: "Approved", bg: "#D1FAE5", color: "#065F46" },
-  rejected: { label: "Needs Fix", bg: "#FEE2E2", color: "#B91C1C" },
+  pending_approval: { label: "Awaiting Approval", bg: "#FEF3C7", color: "#92400E" },
+  registered: { label: "Payment Needed", bg: "#DBEAFE", color: "#1D4ED8" },
+  rejected: { label: "Rejected", bg: "#FEE2E2", color: "#B91C1C" },
   paid: { label: "Joined", bg: "#D1FAE5", color: "#065F46" },
+  approved: { label: "Joined", bg: "#D1FAE5", color: "#065F46" },
   completed: { label: "Completed", bg: "#E0E7FF", color: "#4338CA" },
 };
 
@@ -84,7 +82,6 @@ export default function MyCompetitionsScreen() {
   const [loadingFavorites, setLoadingFavorites] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [busyCompId, setBusyCompId] = useState<string | null>(null);
-  const [busyRegistrationId, setBusyRegistrationId] = useState<string | null>(null);
   const refreshRegistrationsRef = useRef(refreshRegistrations);
   const loadFavoritesRef = useRef<() => Promise<void>>(async () => {});
 
@@ -128,7 +125,7 @@ export default function MyCompetitionsScreen() {
   const applications = useMemo(
     () =>
       registrations.filter((registration) =>
-        ["registered", "pending_review", "rejected"].includes(registration.status)
+        ["pending_approval", "registered", "rejected"].includes(registration.status)
       ),
     [registrations]
   );
@@ -165,44 +162,6 @@ export default function MyCompetitionsScreen() {
     }
   };
 
-  const pickAndUploadProof = async (registrationId: string) => {
-    try {
-      setBusyRegistrationId(registrationId);
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (permission.status !== "granted") {
-        Alert.alert("Permission Needed", "Photo library permission is required to upload your screenshot.");
-        return;
-      }
-
-      const picked = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: "images" as const,
-        quality: 0.9,
-      });
-
-      if (picked.canceled || !picked.assets?.[0]) {
-        return;
-      }
-
-      const asset = picked.assets[0];
-      const manualIntent = await paymentsService.createManualIntent(registrationId);
-      await paymentsService.uploadPaymentProof(manualIntent.paymentId, {
-        uri: asset.uri,
-        name: asset.fileName || `payment-proof-${Date.now()}.jpg`,
-        mimeType: asset.mimeType,
-      });
-      await refreshRegistrations();
-      setActiveTab("Applications");
-      Alert.alert(
-        "Proof Submitted",
-        "Your application is now under review by admin."
-      );
-    } catch (err: any) {
-      Alert.alert("Upload Failed", err.message || "Failed to upload payment proof.");
-    } finally {
-      setBusyRegistrationId(null);
-    }
-  };
-
   const handleApplyFromSaved = async (favorite: Favorite) => {
     try {
       setBusyCompId(favorite.id);
@@ -214,32 +173,11 @@ export default function MyCompetitionsScreen() {
       await favoritesService.remove(favorite.id).catch(() => undefined);
       setFavorites((current) => current.filter((item) => item.id !== favorite.id));
 
-      if (favorite.fee > 0) {
-        Alert.alert(
-          "Application Created",
-          "Your application was created. Continue to Midtrans payment now, then upload your screenshot from the application tab.",
-          [
-            {
-              text: "Later",
-              onPress: () => setActiveTab("Applications"),
-            },
-            {
-              text: "Pay Now",
-              onPress: () =>
-                router.push({
-                  pathname: "/(payment)/pay",
-                  params: { registrationId: registration.id },
-                }),
-            },
-          ]
-        );
-      } else {
-        setActiveTab("Joined");
-        Alert.alert(
-          "Registered",
-          "This competition is free, so you were added directly to your joined competitions."
-        );
-      }
+      setActiveTab("Applications");
+      Alert.alert(
+        "Registration Submitted",
+        "Your registration is pending admin approval. You'll be notified once it's reviewed."
+      );
     } catch (err: any) {
       Alert.alert("Application Failed", err.message || "Unable to apply for this competition.");
     } finally {
@@ -313,47 +251,37 @@ export default function MyCompetitionsScreen() {
                 <Text style={styles.regNumberText}>{item.registrationNumber}</Text>
               </View>
             ) : null}
-            {item.status === "pending_review" ? (
+            {item.status === "pending_approval" ? (
               <Text style={styles.helperText}>
-                Admin is reviewing your proof. You will get a notification after approval.
+                Waiting for admin approval. You will be notified once reviewed.
+              </Text>
+            ) : null}
+            {item.status === "registered" ? (
+              <Text style={styles.helperText}>
+                Approved! Complete your payment to secure your spot.
               </Text>
             ) : null}
             {item.status === "rejected" ? (
               <Text style={styles.helperText}>
-                Your previous proof was rejected. Upload a corrected proof to continue.
+                Your registration was not approved. Contact support for more details.
               </Text>
             ) : null}
           </View>
         </View>
 
         <View style={styles.actionRow}>
-          {item.fee > 0 && ["registered", "rejected"].includes(item.status) ? (
-            <>
-              <Pressable
-                style={styles.secondaryButton}
-                onPress={() =>
-                  router.push({
-                    pathname: "/(payment)/pay",
-                    params: { registrationId: item.id },
-                  })
-                }
-              >
-                <Text style={styles.secondaryButtonText}>Pay Now</Text>
-              </Pressable>
-              <Pressable
-                style={styles.primaryButtonInline}
-                onPress={() => pickAndUploadProof(item.id)}
-                disabled={busyRegistrationId === item.id}
-              >
-                <Text style={styles.primaryButtonText}>
-                  {busyRegistrationId === item.id
-                    ? "Uploading..."
-                    : item.status === "rejected"
-                    ? "Upload New Proof"
-                    : "Upload Screenshot"}
-                </Text>
-              </Pressable>
-            </>
+          {item.fee > 0 && item.status === "registered" ? (
+            <Pressable
+              style={styles.primaryButtonInline}
+              onPress={() =>
+                router.push({
+                  pathname: "/(payment)/pay",
+                  params: { registrationId: item.id },
+                })
+              }
+            >
+              <Text style={styles.primaryButtonText}>Pay Now</Text>
+            </Pressable>
           ) : (
             <Pressable
               style={styles.secondaryButton}

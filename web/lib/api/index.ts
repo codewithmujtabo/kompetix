@@ -1,5 +1,5 @@
 import { http } from './client';
-import type { AuthUser, Competition, Pagination, School, User } from '@/types';
+import type { AuthUser, Competition, Pagination, PendingRegistration, School, User } from '@/types';
 
 export const authApi = {
   login: (email: string, password: string) =>
@@ -42,6 +42,15 @@ export const usersApi = {
     if (p.search) q.set('search', p.search);
     return http.get<{ users: User[]; pagination: Pagination }>(`/admin/users?${q}`);
   },
+};
+
+export const registrationsApi = {
+  listPending: () =>
+    http.get<{ pendingRegistrations: PendingRegistration[] }>('/admin/registrations/pending'),
+  approve: (id: string) =>
+    http.post<{ message: string; status: string }>(`/admin/registrations/${id}/approve`, {}),
+  reject: (id: string, reason: string) =>
+    http.post<{ message: string; status: string }>(`/admin/registrations/${id}/reject`, { reason }),
 };
 
 export const notificationsApi = {
