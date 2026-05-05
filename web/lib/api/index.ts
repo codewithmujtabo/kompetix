@@ -26,11 +26,20 @@ export const competitionsApi = {
     if (p.limit)    q.set('limit',    String(p.limit));
     if (p.category) q.set('category', p.category);
     if (p.search)   q.set('search',   p.search);
-    return http.get<{ competitions: Competition[]; pagination: Pagination }>(`/admin/competitions?${q}`);
+    
+    return http.get<Competition[]>(`/admin/competitions?${q}`).then(data => {
+      return {
+        competitions: data,
+        pagination: {
+          total: data.length,
+          page: p.page || 1,
+          limit: p.limit || 15,
+          totalPages: Math.ceil(data.length / (p.limit || 15))
+        }
+      };
+    });
   },
-  create: (data: Partial<Competition>) => http.post<Competition>('/admin/competitions', data),
-  update: (id: string, data: Partial<Competition>) => http.put<Competition>(`/admin/competitions/${id}`, data),
-  delete: (id: string) => http.delete<{ message: string }>(`/admin/competitions/${id}`),
+
 };
 
 export const usersApi = {

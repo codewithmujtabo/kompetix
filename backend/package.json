@@ -13,6 +13,7 @@
     "db:seed": "ts-node src/db/seed.ts",
     "db:seed:competitions": "ts-node src/db/seed-competitions-from-csv.ts",
     "db:create-admin": "ts-node src/db/create-admin.ts",
+    "db:create-organizer": "ts-node src/db/create-organizer.ts",
     "db:init": "psql $DATABASE_URL < src/db/schema.sql",
     "db:import-historical": "ts-node src/db/import-historical.ts"
   },

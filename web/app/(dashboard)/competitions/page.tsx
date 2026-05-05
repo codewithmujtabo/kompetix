@@ -7,11 +7,6 @@ import { PageHeader, Spinner, Toast, Pager } from '@/components/ui';
 
 const CATS = ['', 'Science', 'Math', 'Art', 'Sports', 'Technology', 'Literature', 'Music'];
 
-const EMPTY: typeof FORM_DEFAULTS = {
-  name: '', organizer_name: '', category: '', grade_level: '',
-  fee: '0', description: '', reg_open_date: '', reg_close_date: '', competition_date: '',
-};
-
 const FORM_DEFAULTS = {
   name: '', organizer_name: '', category: '', grade_level: '',
   fee: '0', description: '', reg_open_date: '', reg_close_date: '', competition_date: '',
@@ -27,30 +22,43 @@ function F({ label, children }: { label: string; children: React.ReactNode }) {
 }
 
 export default function Competitions() {
-  const [comps, setComps]       = useState<Competition[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [total, setTotal]       = useState(0);
-  const [page, setPage]         = useState(1);
-  const [cat, setCat]           = useState('');
+  const [comps, setComps] = useState<Competition[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [cat, setCat] = useState('');
   const [showForm, setShowForm] = useState(false);
-  const [editId, setEditId]     = useState<string | null>(null);
-  const [saving, setSaving]     = useState(false);
-  const [msg, setMsg]           = useState<{ ok: boolean; text: string } | null>(null);
-  const [form, setForm]         = useState(FORM_DEFAULTS);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [form, setForm] = useState(FORM_DEFAULTS);
   const LIMIT = 15;
 
   const load = async () => {
     setLoading(true);
     try {
       const r = await competitionsApi.list({ page, limit: LIMIT, category: cat || undefined });
-      setComps(r.competitions); setTotal(r.pagination.total);
-    } catch (e) { setMsg({ ok: false, text: (e as Error).message }); }
-    finally { setLoading(false); }
+     
+      setComps(Array.isArray(r?.competitions) ? r.competitions : []);
+      setTotal(r?.pagination?.total ?? 0);
+    } catch (e) { 
+      setMsg({ ok: false, text: (e as Error).message });
+      setComps([]); 
+      setTotal(0);
+    } finally { 
+      setLoading(false); 
+    }
   };
 
-  useEffect(() => { load(); }, [page, cat]);
+  useEffect(() => { 
+    load(); 
+  }, [page, cat]);
 
-  const openAdd = () => { setEditId(null); setForm(EMPTY); setShowForm(true); };
+  const openAdd = () => { 
+    setEditId(null); 
+    setForm({ ...FORM_DEFAULTS });
+    setShowForm(true); 
+  };
 
   const openEdit = (c: Competition) => {
     setEditId(c.id);
@@ -69,7 +77,11 @@ export default function Competitions() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const closeForm = () => { setShowForm(false); setEditId(null); setForm(EMPTY); };
+  const closeForm = () => { 
+    setShowForm(false); 
+    setEditId(null); 
+    setForm({ ...FORM_DEFAULTS });
+  };
 
   const save = async () => {
     if (!form.name || !form.organizer_name) return;
@@ -83,19 +95,30 @@ export default function Competitions() {
         await competitionsApi.create(payload);
         setMsg({ ok: true, text: 'Competition created!' });
       }
-      closeForm(); load();
-    } catch (e) { setMsg({ ok: false, text: (e as Error).message }); }
-    finally { setSaving(false); }
+      closeForm(); 
+      load();
+    } catch (e) { 
+      setMsg({ ok: false, text: (e as Error).message }); 
+    } finally { 
+      setSaving(false); 
+    }
   };
 
   const remove = async (id: string, name: string) => {
     if (!confirm(`Delete "${name}"?`)) return;
-    try { await competitionsApi.delete(id); load(); }
-    catch (e) { setMsg({ ok: false, text: (e as Error).message }); }
+    try { 
+      await competitionsApi.delete(id); 
+      load();
+    } catch (e) { 
+      setMsg({ ok: false, text: (e as Error).message }); 
+    }
   };
 
   const fmtDate = (d?: string) =>
     d ? new Date(d).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+
+  // ✅ Добавляем безопасную проверку
+  const hasComps = Array.isArray(comps) && comps.length > 0;
 
   return (
     <div style={{ padding: '36px 40px', maxWidth: 1060 }}>
@@ -162,37 +185,56 @@ export default function Competitions() {
 
       <div className="card fu" style={{ padding: 0, overflow: 'hidden', animationDelay: '.05s' }}>
         <div style={{ overflowX: 'auto' }}>
-          {loading
-            ? <div style={{ padding: 48, textAlign: 'center' }}><Spinner /></div>
-            : comps.length === 0
-              ? <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-3)', fontFamily: 'var(--ff-mono)', fontSize: 12 }}>No competitions</div>
-              : <table>
-                  <thead>
-                    <tr><th>Name</th><th>Category</th><th>Organizer</th><th>Fee</th><th>Close</th><th>Date</th><th></th></tr>
-                  </thead>
-                  <tbody>
-                    {comps.map(c => (
-                      <tr key={c.id} style={{ background: editId === c.id ? 'rgba(99,102,241,.05)' : undefined }}>
-                        <td style={{ color: 'var(--text-1)', fontWeight: 500, maxWidth: 240 }}>
-                          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</div>
-                          {c.grade_level && <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>{c.grade_level}</div>}
-                        </td>
-                        <td>{c.category ? <span className="badge badge-indigo">{c.category}</span> : '—'}</td>
-                        <td style={{ fontSize: 12 }}>{c.organizer_name}</td>
-                        <td>{c.fee === 0 ? <span className="badge badge-green">Free</span> : `Rp ${c.fee.toLocaleString('id-ID')}`}</td>
-                        <td style={{ fontFamily: 'var(--ff-mono)', fontSize: 11 }}>{fmtDate(c.reg_close_date)}</td>
-                        <td style={{ fontFamily: 'var(--ff-mono)', fontSize: 11 }}>{fmtDate(c.competition_date)}</td>
-                        <td>
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            <button className="btn btn-ghost" onClick={() => openEdit(c)} style={{ padding: '4px 10px', fontSize: 11 }}>Edit</button>
-                            <button className="btn btn-danger" onClick={() => remove(c.id, c.name)} style={{ padding: '4px 10px', fontSize: 11 }}>Del</button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-          }
+          {loading ? (
+            <div style={{ padding: 48, textAlign: 'center' }}><Spinner /></div>
+          ) : !hasComps ? (  // ✅ используем безопасную проверку
+            <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-3)', fontFamily: 'var(--ff-mono)', fontSize: 12 }}>
+              No competitions
+            </div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '12px 16px', borderBottom: '1px solid var(--border-light)' }}>Name</th>
+                  <th style={{ textAlign: 'left', padding: '12px 16px', borderBottom: '1px solid var(--border-light)' }}>Category</th>
+                  <th style={{ textAlign: 'left', padding: '12px 16px', borderBottom: '1px solid var(--border-light)' }}>Organizer</th>
+                  <th style={{ textAlign: 'left', padding: '12px 16px', borderBottom: '1px solid var(--border-light)' }}>Fee</th>
+                  <th style={{ textAlign: 'left', padding: '12px 16px', borderBottom: '1px solid var(--border-light)' }}>Close</th>
+                  <th style={{ textAlign: 'left', padding: '12px 16px', borderBottom: '1px solid var(--border-light)' }}>Date</th>
+                  <th style={{ textAlign: 'left', padding: '12px 16px', borderBottom: '1px solid var(--border-light)' }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {comps.map(c => (
+                  <tr key={c.id} style={{ background: editId === c.id ? 'rgba(99,102,241,.05)' : undefined }}>
+                    <td style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-light)', color: 'var(--text-1)', fontWeight: 500, maxWidth: 240 }}>
+                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</div>
+                      {c.grade_level && <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>{c.grade_level}</div>}
+                    </td>
+                    <td style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-light)' }}>
+                      {c.category ? <span className="badge badge-indigo">{c.category}</span> : '—'}
+                    </td>
+                    <td style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-light)', fontSize: 12 }}>{c.organizer_name}</td>
+                    <td style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-light)' }}>
+                      {c.fee === 0 ? <span className="badge badge-green">Free</span> : `Rp ${c.fee.toLocaleString('id-ID')}`}
+                    </td>
+                    <td style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-light)', fontFamily: 'var(--ff-mono)', fontSize: 11 }}>
+                      {fmtDate(c.reg_close_date)}
+                    </td>
+                    <td style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-light)', fontFamily: 'var(--ff-mono)', fontSize: 11 }}>
+                      {fmtDate(c.competition_date)}
+                    </td>
+                    <td style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-light)' }}>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="btn btn-ghost" onClick={() => openEdit(c)} style={{ padding: '4px 10px', fontSize: 11 }}>Edit</button>
+                        <button className="btn btn-danger" onClick={() => remove(c.id, c.name)} style={{ padding: '4px 10px', fontSize: 11 }}>Del</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
         <Pager page={page} total={total} limit={LIMIT} onChange={setPage} />
       </div>

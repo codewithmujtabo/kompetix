@@ -28,15 +28,21 @@ export default function Notifications() {
       competitionsApi.list({ limit: 200 }),
       schoolsApi.provinces(),
     ]).then(([s, c, p]) => {
-      setAllSchools(s.schools);
-      setAllComps(c.competitions);
-      setProvinces(p);
+  
+      setAllSchools(Array.isArray(s?.schools) ? s.schools : []);
+      setAllComps(Array.isArray(c?.competitions) ? c.competitions : []);
+      setProvinces(Array.isArray(p) ? p : []);
+    }).catch(err => {
+      console.error('Failed to load data:', err);
+      setAllSchools([]);
+      setAllComps([]);
+      setProvinces([]);
     }).finally(() => setLoadingData(false));
   }, []);
 
   useEffect(() => {
     if (!compId) return;
-    const c = allComps.find(x => x.id === compId);
+    const c = allComps?.find(x => x.id === compId);
     if (!c) return;
     setTitle(`📢 ${c.name}`);
     const close = c.reg_close_date
@@ -45,13 +51,13 @@ export default function Notifications() {
     setBody(`${c.organizer_name} is opening registration for ${c.name}.${close} Category: ${c.category || 'General'}.`);
   }, [compId, allComps]);
 
-  const visible = allSchools.filter(s => {
+  const visible = allSchools?.filter(s => {
     const matchProvince = !province || s.province === province;
     const matchSearch   = !schoolSearch
       || s.name.toLowerCase().includes(schoolSearch.toLowerCase())
       || (s.city ?? '').toLowerCase().includes(schoolSearch.toLowerCase());
     return matchProvince && matchSearch;
-  });
+  }) || [];
 
   const toggle    = (id: string) => setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const selectAll = () => setSelected(new Set(visible.map(s => s.id)));
@@ -144,7 +150,8 @@ export default function Notifications() {
                 <label className="label">Competition (optional)</label>
                 <select className="input" value={compId} onChange={e => setCompId(e.target.value)}>
                   <option value="">— choose —</option>
-                  {allComps.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  {}
+                  {allComps?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
               <div>
