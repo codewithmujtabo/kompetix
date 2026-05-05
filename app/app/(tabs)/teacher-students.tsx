@@ -1,371 +1,272 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  ActivityIndicator,
+  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  FlatList, ActivityIndicator, Alert, RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Brand } from "@/constants/theme";
-import { IconSymbol } from "@/components/ui/icon-symbol";
 import { router } from "expo-router";
 import { useUser } from "@/context/AuthContext";
-import { getTeacherStudents } from "@/services/teachers.service";
+import { getMyStudents, linkStudent, unlinkStudent, type Student } from "@/services/teachers.service";
 
 export default function TeacherStudentsScreen() {
   const { user } = useUser();
   const userRole = (user as any)?.role;
-  const [searchQuery, setSearchQuery] = useState("");
-  const [gradeFilter, setGradeFilter] = useState("");
+  const queryClient = useQueryClient();
 
-  // Fetch students from backend (hooks must be called before any returns)
-  const { data, isLoading } = useQuery({
-    queryKey: ["teacherStudents", searchQuery, gradeFilter],
-    queryFn: () => getTeacherStudents(searchQuery, gradeFilter),
-    enabled: userRole === "teacher", // Only fetch if teacher
+  const [searchQuery, setSearchQuery] = useState("");
+  const [addEmail, setAddEmail]       = useState("");
+  const [adding, setAdding]           = useState(false);
+  const [removingId, setRemovingId]   = useState<string | null>(null);
+  const [refreshing, setRefreshing]   = useState(false);
+  const [showAddRow, setShowAddRow]   = useState(false);
+
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ["teacherStudents", searchQuery],
+    queryFn: () => getMyStudents(searchQuery),
+    enabled: userRole === "teacher",
   });
 
-  const students = data?.students || [];
-  const stats = data?.stats || { totalStudents: 0, totalRegistrations: 0, activeStudents: 0 };
+  const students = data?.students ?? [];
+  const stats    = data?.stats ?? { totalStudents: 0, totalRegistrations: 0, activeStudents: 0 };
 
-  // Redirect non-teachers away from this screen
   useEffect(() => {
     if (userRole && userRole !== "teacher") {
-      if (userRole === "parent") {
-        router.replace("/(tabs)/children");
-      } else if (userRole === "school_admin") {
-        router.replace("/(tabs)/profile");
-      } else {
-        router.replace("/(tabs)/competitions");
-      }
+      if (userRole === "parent") router.replace("/(tabs)/children");
+      else if (userRole === "school_admin") router.replace("/(tabs)/profile");
+      else router.replace("/(tabs)/competitions");
     }
   }, [userRole]);
 
-  // Don't render if not a teacher
-  if (userRole && userRole !== "teacher") {
-    return null;
-  }
+  if (userRole && userRole !== "teacher") return null;
 
-  const handleBulkRegister = () => {
-    router.push("/bulk-registration");
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
   };
+
+  const handleAdd = async () => {
+    const email = addEmail.trim().toLowerCase();
+    if (!email) return;
+    setAdding(true);
+    try {
+      const res = await linkStudent(email);
+      setAddEmail("");
+      setShowAddRow(false);
+      await queryClient.invalidateQueries({ queryKey: ["teacherStudents"] });
+      await queryClient.invalidateQueries({ queryKey: ["teacherSummary"] });
+      Alert.alert("Added", `${res.fullName} has been added to your roster.`);
+    } catch (err: any) {
+      Alert.alert("Failed", err?.message ?? "Could not add student");
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const handleRemove = (student: Student) => {
+    Alert.alert(
+      "Remove Student",
+      `Remove ${student.fullName} from your roster? This won't affect their account or registrations.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            setRemovingId(student.id);
+            try {
+              await unlinkStudent(student.id);
+              await queryClient.invalidateQueries({ queryKey: ["teacherStudents"] });
+              await queryClient.invalidateQueries({ queryKey: ["teacherSummary"] });
+            } catch (err: any) {
+              Alert.alert("Error", err?.message ?? "Failed to remove student");
+            } finally {
+              setRemovingId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const renderItem = ({ item }: { item: Student }) => (
+    <View style={styles.studentCard}>
+      <View style={styles.avatar}>
+        <Text style={styles.avatarText}>{item.fullName.charAt(0).toUpperCase()}</Text>
+      </View>
+      <View style={styles.studentInfo}>
+        <Text style={styles.studentName}>{item.fullName}</Text>
+        <Text style={styles.studentEmail}>{item.email}</Text>
+        <View style={styles.studentMeta}>
+          {item.grade ? <Text style={styles.metaTag}>Grade {item.grade}</Text> : null}
+          {item.school ? <Text style={styles.metaTag} numberOfLines={1}>{item.school}</Text> : null}
+        </View>
+        <Text style={styles.regCount}>
+          {item.registrationCount} competition{item.registrationCount !== 1 ? "s" : ""} registered
+        </Text>
+      </View>
+      <TouchableOpacity
+        style={styles.removeBtn}
+        onPress={() => handleRemove(item)}
+        disabled={removingId === item.id}
+      >
+        {removingId === item.id
+          ? <ActivityIndicator size="small" color="#EF4444" />
+          : <Text style={styles.removeBtnText}>×</Text>
+        }
+      </TouchableOpacity>
+    </View>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.headerTitle}>My Students</Text>
-            <Text style={styles.headerSubtitle}>
-              Manage your students and track their progress
-            </Text>
-          </View>
-          <TouchableOpacity style={styles.bulkButton} onPress={handleBulkRegister}>
-            <IconSymbol name="plus.circle.fill" size={24} color="#fff" />
+      {/* Header */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.title}>My Students</Text>
+          <Text style={styles.subtitle}>
+            {stats.totalStudents} student{stats.totalStudents !== 1 ? "s" : ""} · {stats.totalRegistrations} registration{stats.totalRegistrations !== 1 ? "s" : ""}
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={[styles.addButton, showAddRow && styles.addButtonActive]}
+          onPress={() => setShowAddRow(v => !v)}
+        >
+          <Text style={styles.addButtonText}>{showAddRow ? "Cancel" : "+ Add"}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Add student row */}
+      {showAddRow && (
+        <View style={styles.addRow}>
+          <TextInput
+            style={styles.addInput}
+            placeholder="Student email address"
+            placeholderTextColor="#94A3B8"
+            value={addEmail}
+            onChangeText={setAddEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoFocus
+            onSubmitEditing={handleAdd}
+            returnKeyType="done"
+          />
+          <TouchableOpacity
+            style={[styles.addConfirmBtn, adding && styles.addConfirmBtnDisabled]}
+            onPress={handleAdd}
+            disabled={adding || !addEmail.trim()}
+          >
+            {adding
+              ? <ActivityIndicator size="small" color="#fff" />
+              : <Text style={styles.addConfirmBtnText}>Add</Text>
+            }
           </TouchableOpacity>
         </View>
+      )}
 
-        {/* Search & Filter */}
-        <View style={styles.filterSection}>
-          <View style={styles.searchContainer}>
-            <IconSymbol name="magnifyingglass" size={20} color="#64748B" />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search students..."
-              placeholderTextColor="#94A3B8"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-          </View>
+      {/* Search */}
+      <View style={styles.searchRow}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search by name or email…"
+          placeholderTextColor="#94A3B8"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          returnKeyType="search"
+        />
+        {searchQuery ? (
+          <TouchableOpacity onPress={() => setSearchQuery("")} style={styles.clearBtn}>
+            <Text style={styles.clearBtnText}>✕</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
 
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.gradeFilters}
-            contentContainerStyle={styles.gradeFiltersContent}
-          >
-            {[7, 8, 9, 10, 11, 12].map((grade) => (
-              <TouchableOpacity
-                key={grade}
-                style={[
-                  styles.gradeChip,
-                  gradeFilter === String(grade) && styles.gradeChipActive,
-                ]}
-                onPress={() =>
-                  setGradeFilter(gradeFilter === String(grade) ? "" : String(grade))
-                }
-              >
-                <Text
-                  style={[
-                    styles.gradeChipText,
-                    gradeFilter === String(grade) && styles.gradeChipTextActive,
-                  ]}
-                >
-                  Grade {grade}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+      {isLoading ? (
+        <View style={styles.centered}>
+          <ActivityIndicator color={Brand.primary} />
         </View>
-
-        {/* Quick Stats */}
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{stats.totalStudents}</Text>
-            <Text style={styles.statLabel}>Total Students</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{stats.totalRegistrations}</Text>
-            <Text style={styles.statLabel}>Total Registrations</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{stats.activeStudents}</Text>
-            <Text style={styles.statLabel}>Active Students</Text>
-          </View>
+      ) : students.length === 0 ? (
+        <View style={styles.centered}>
+          <Text style={styles.emptyEmoji}>👥</Text>
+          <Text style={styles.emptyTitle}>
+            {searchQuery ? "No students match your search" : "No students yet"}
+          </Text>
+          <Text style={styles.emptyBody}>
+            {searchQuery
+              ? "Try a different name or email"
+              : 'Tap "+ Add" to add a student by their email address.'}
+          </Text>
         </View>
-
-        {/* Students List */}
-        <View style={styles.listSection}>
-          <Text style={styles.sectionTitle}>Students</Text>
-
-          {isLoading ? (
-            <ActivityIndicator style={styles.loader} color={Brand.primary} />
-          ) : students && students.length > 0 ? (
-            students.map((student) => (
-              <View key={student.id} style={styles.studentCard}>
-                <View style={styles.studentAvatar}>
-                  <Text style={styles.studentAvatarText}>
-                    {student.fullName.charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-
-                <View style={styles.studentInfo}>
-                  <Text style={styles.studentName}>{student.fullName}</Text>
-                  <Text style={styles.studentDetails}>
-                    {student.grade ? `Grade ${student.grade}` : "No grade"}{student.nisn ? ` • NISN: ${student.nisn}` : ""}
-                  </Text>
-                  <Text style={styles.studentEmail}>{student.email}</Text>
-                </View>
-
-                <View style={styles.studentStats}>
-                  <View style={styles.regBadge}>
-                    <Text style={styles.regBadgeText}>
-                      {student.registrationCount}
-                    </Text>
-                    <Text style={styles.regBadgeLabel}>regs</Text>
-                  </View>
-                </View>
-              </View>
-            ))
-          ) : (
-            <View style={styles.emptyState}>
-              <IconSymbol name="person.3.fill" size={64} color="#CBD5E1" />
-              <Text style={styles.emptyTitle}>No students found</Text>
-              <Text style={styles.emptySubtitle}>
-                {searchQuery || gradeFilter
-                  ? "Try adjusting your filters"
-                  : "Students will appear here once added"}
-              </Text>
-            </View>
-          )}
-        </View>
-      </ScrollView>
+      ) : (
+        <FlatList
+          data={students}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Brand.primary} />
+          }
+        />
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F8FAFC",
+  container:  { flex: 1, backgroundColor: "#F8FAFC" },
+  header:     { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12 },
+  title:      { fontSize: 24, fontWeight: "800", color: "#0F172A" },
+  subtitle:   { marginTop: 4, fontSize: 13, color: "#64748B" },
+  addButton:  { backgroundColor: Brand.primary, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
+  addButtonActive: { backgroundColor: "#64748B" },
+  addButtonText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+  addRow: {
+    flexDirection: "row", gap: 10, paddingHorizontal: 20, paddingBottom: 12,
   },
-  scrollContent: {
-    padding: 16,
+  addInput: {
+    flex: 1, backgroundColor: "#fff", borderWidth: 1.5, borderColor: Brand.primary,
+    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: "#0F172A",
   },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 20,
+  addConfirmBtn: { backgroundColor: Brand.primary, borderRadius: 10, paddingHorizontal: 16, justifyContent: "center" },
+  addConfirmBtnDisabled: { opacity: 0.5 },
+  addConfirmBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  searchRow: {
+    flexDirection: "row", alignItems: "center", marginHorizontal: 20, marginBottom: 14,
+    backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: "#E2E8F0",
+    paddingHorizontal: 14,
   },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#1E293B",
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: "#64748B",
-  },
-  bulkButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Brand.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  filterSection: {
-    marginBottom: 20,
-  },
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 12,
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: 12,
-    fontSize: 16,
-    color: "#1E293B",
-  },
-  gradeFilters: {
-    maxHeight: 50,
-  },
-  gradeFiltersContent: {
-    gap: 8,
-  },
-  gradeChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
-  gradeChipActive: {
-    backgroundColor: Brand.primary,
-    borderColor: Brand.primary,
-  },
-  gradeChipText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#64748B",
-  },
-  gradeChipTextActive: {
-    color: "#fff",
-  },
-  statsRow: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 24,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    alignItems: "center",
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: Brand.primary,
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 11,
-    color: "#64748B",
-    textAlign: "center",
-  },
-  listSection: {
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1E293B",
-    marginBottom: 16,
-  },
-  loader: {
-    marginVertical: 40,
-  },
+  searchInput: { flex: 1, paddingVertical: 11, fontSize: 14, color: "#0F172A" },
+  clearBtn:    { padding: 4 },
+  clearBtnText: { fontSize: 14, color: "#94A3B8" },
+  centered:   { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 },
+  emptyEmoji: { fontSize: 48, marginBottom: 12 },
+  emptyTitle: { fontSize: 18, fontWeight: "700", color: "#0F172A", textAlign: "center", marginBottom: 8 },
+  emptyBody:  { fontSize: 14, color: "#64748B", textAlign: "center", lineHeight: 22 },
+  listContent: { paddingHorizontal: 20, paddingBottom: 24 },
   studentCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    flexDirection: "row", backgroundColor: "#fff", borderRadius: 16,
+    padding: 14, marginBottom: 12, alignItems: "flex-start",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
   },
-  studentAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Brand.primary,
-    alignItems: "center",
-    justifyContent: "center",
+  avatar: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: Brand.primary + "20", alignItems: "center", justifyContent: "center",
     marginRight: 12,
   },
-  studentAvatarText: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#fff",
+  avatarText: { fontSize: 18, fontWeight: "800", color: Brand.primary },
+  studentInfo: { flex: 1 },
+  studentName:  { fontSize: 15, fontWeight: "700", color: "#0F172A" },
+  studentEmail: { fontSize: 12, color: "#64748B", marginTop: 2 },
+  studentMeta:  { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6 },
+  metaTag: {
+    fontSize: 11, color: "#4338CA", backgroundColor: "#EEF2FF",
+    borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, fontWeight: "600",
   },
-  studentInfo: {
-    flex: 1,
-  },
-  studentName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1E293B",
-    marginBottom: 2,
-  },
-  studentDetails: {
-    fontSize: 13,
-    color: "#64748B",
-    marginBottom: 2,
-  },
-  studentEmail: {
-    fontSize: 12,
-    color: "#94A3B8",
-  },
-  studentStats: {
-    alignItems: "flex-end",
-  },
-  regBadge: {
-    backgroundColor: "#F0F0FF",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    alignItems: "center",
-  },
-  regBadgeText: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: Brand.primary,
-  },
-  regBadgeLabel: {
-    fontSize: 10,
-    color: "#64748B",
-    marginTop: 2,
-  },
-  emptyState: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 60,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1E293B",
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: "#64748B",
-    textAlign: "center",
-    paddingHorizontal: 32,
-  },
+  regCount:  { marginTop: 6, fontSize: 12, color: "#64748B" },
+  removeBtn: { padding: 8 },
+  removeBtnText: { fontSize: 22, color: "#CBD5E1", fontWeight: "300" },
 });

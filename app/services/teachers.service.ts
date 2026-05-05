@@ -6,7 +6,7 @@ export interface Student {
   email: string;
   photoUrl?: string;
   nisn?: string;
-  grade?: number;
+  grade?: string;
   school?: string;
   registrationCount: number;
 }
@@ -15,37 +15,6 @@ export interface StudentStats {
   totalStudents: number;
   totalRegistrations: number;
   activeStudents: number;
-}
-
-export interface RegistrationsByMonth {
-  month: string;
-  count: number;
-}
-
-export interface CategoryDistribution {
-  category: string;
-  count: number;
-  color: string;
-}
-
-export interface GradeParticipation {
-  grade: string;
-  count: number;
-}
-
-export interface SuccessRate {
-  confirmed: number;
-  pending: number;
-  rejected: number;
-}
-
-export interface Activity {
-  id: string;
-  action: string;
-  competition: string;
-  time: string;
-  icon: string;
-  color: string;
 }
 
 export interface Deadline {
@@ -57,59 +26,66 @@ export interface Deadline {
   status: "urgent" | "upcoming";
 }
 
-export interface KeyMetrics {
+export interface DashboardSummary {
+  totalStudents: number;
   totalRegistrations: number;
-  percentChange: number;
+  confirmedRegistrations: number;
   activeStudents: number;
-  averagePerStudent: string;
 }
 
-// Get students list with optional filters
-export async function getTeacherStudents(
-  search?: string,
-  grade?: string
-): Promise<{ students: Student[]; stats: StudentStats }> {
+export interface CompetitionStudent {
+  id: string;
+  fullName: string;
+  grade: string;
+  status: string;
+  registrationNumber: string | null;
+}
+
+export interface MyCompetition {
+  id: string;
+  name: string;
+  category: string | null;
+  fee: number;
+  regCloseDate: string | null;
+  competitionDate: string | null;
+  students: CompetitionStudent[];
+}
+
+// My linked students (scoped to this teacher)
+export async function getMyStudents(search?: string, grade?: string): Promise<{ students: Student[]; stats: StudentStats }> {
   const params = new URLSearchParams();
   if (search) params.append("search", search);
   if (grade) params.append("grade", grade);
-
-  const queryString = params.toString();
-  return await apiRequest(
-    `/teachers/students${queryString ? `?${queryString}` : ""}`
-  );
+  const qs = params.toString();
+  return await apiRequest(`/teachers/students${qs ? `?${qs}` : ""}`);
 }
 
-// Get registrations by month for charts
-export async function getRegistrationsByMonth(): Promise<RegistrationsByMonth[]> {
-  return await apiRequest("/teachers/analytics/registrations-by-month");
+// Competitions my students are registered for
+export async function getMyCompetitions(): Promise<{ competitions: MyCompetition[] }> {
+  return await apiRequest("/teachers/my-competitions");
 }
 
-// Get competition category distribution
-export async function getCategoryDistribution(): Promise<CategoryDistribution[]> {
-  return await apiRequest("/teachers/analytics/categories");
+// Dashboard summary stats
+export async function getDashboardSummary(): Promise<DashboardSummary> {
+  return await apiRequest("/teachers/dashboard-summary");
 }
 
-// Get grade participation data
-export async function getGradeParticipation(): Promise<GradeParticipation[]> {
-  return await apiRequest("/teachers/analytics/grade-participation");
-}
-
-// Get success rate metrics
-export async function getSuccessRate(): Promise<SuccessRate> {
-  return await apiRequest("/teachers/analytics/success-rate");
-}
-
-// Get recent activities
-export async function getRecentActivities(): Promise<Activity[]> {
-  return await apiRequest("/teachers/recent-activities");
-}
-
-// Get upcoming deadlines
+// Upcoming competition deadlines
 export async function getUpcomingDeadlines(): Promise<Deadline[]> {
   return await apiRequest("/teachers/upcoming-deadlines");
 }
 
-// Get key metrics for analytics cards
-export async function getKeyMetrics(): Promise<KeyMetrics> {
-  return await apiRequest("/teachers/key-metrics");
+// Add a student to this teacher's roster by email
+export async function linkStudent(email: string): Promise<{ message: string; studentId: string; fullName: string }> {
+  return await apiRequest("/teachers/link-student", {
+    method: "POST",
+    body: { email },
+  });
+}
+
+// Remove a student from this teacher's roster
+export async function unlinkStudent(studentId: string): Promise<{ message: string }> {
+  return await apiRequest(`/teachers/link-student/${studentId}`, {
+    method: "DELETE",
+  });
 }

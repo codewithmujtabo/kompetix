@@ -13,19 +13,14 @@ import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { Brand } from "@/constants/theme";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { getRecentActivities, getUpcomingDeadlines } from "@/services/teachers.service";
+import { getUpcomingDeadlines, type Deadline } from "@/services/teachers.service";
 
 export default function TeacherActionsScreen() {
-  // Fetch recent activities and upcoming deadlines
-  const { data: recentActivities, isLoading: isLoadingActivities } = useQuery({
-    queryKey: ["recentActivities"],
-    queryFn: getRecentActivities,
-  });
-
   const { data: upcomingDeadlines, isLoading: isLoadingDeadlines } = useQuery({
     queryKey: ["upcomingDeadlines"],
     queryFn: getUpcomingDeadlines,
   });
+  const recentActivities: Deadline[] = [];
 
   const quickActions = [
     {
@@ -185,38 +180,9 @@ export default function TeacherActionsScreen() {
             Your recent actions and updates
           </Text>
 
-          {isLoadingActivities ? (
-            <ActivityIndicator style={styles.loader} color={Brand.primary} />
-          ) : recentActivities && recentActivities.length > 0 ? (
-            recentActivities.map((activity) => (
-              <View key={activity.id} style={styles.activityCard}>
-                <View
-                  style={[
-                    styles.activityIcon,
-                    { backgroundColor: `${activity.color}15` },
-                  ]}
-                >
-                  <IconSymbol
-                    name={activity.icon as any}
-                    size={20}
-                    color={activity.color}
-                  />
-                </View>
-
-                <View style={styles.activityInfo}>
-                  <Text style={styles.activityAction}>{activity.action}</Text>
-                  <Text style={styles.activityCompetition}>
-                    {activity.competition}
-                  </Text>
-                  <Text style={styles.activityTime}>{activity.time}</Text>
-                </View>
-              </View>
-            ))
-          ) : (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>No recent activities</Text>
-            </View>
-          )}
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>Activity feed coming soon</Text>
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
