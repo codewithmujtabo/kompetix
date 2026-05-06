@@ -8,7 +8,7 @@ import { Spinner } from '@/components/ui';
 export default function Login() {
   const { login, user, loading } = useAuth();
   const router                   = useRouter();
-  const [email, setEmail]        = useState('admin@eduversal.com');
+  const [email, setEmail]        = useState('');
   const [password, setPassword]  = useState('');
   const [error, setError]        = useState('');
   const [submitting, setSubmitting] = useState(false);

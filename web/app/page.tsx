@@ -43,15 +43,7 @@ export default function RoleSelector() {
       padding: 24,
       background: 'radial-gradient(ellipse at 50% 0%,rgba(99,102,241,.08) 0%,transparent 60%),var(--bg)',
     }}>
-      {/* Logo */}
       <div style={{ textAlign: 'center', marginBottom: 52 }}>
-        <div style={{
-          width: 56, height: 56, borderRadius: 16,
-          background: 'linear-gradient(135deg,#6366f1,#818cf8)',
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 24, marginBottom: 20,
-          boxShadow: '0 0 36px rgba(99,102,241,.25)',
-        }}>✦</div>
         <h1 style={{ fontFamily: 'var(--ff-display)', fontSize: 32, fontWeight: 400, marginBottom: 6 }}>
           Kompetix
         </h1>
@@ -60,12 +52,10 @@ export default function RoleSelector() {
         </p>
       </div>
 
-      {/* Prompt */}
       <p style={{ fontSize: 15, color: 'var(--text-2)', marginBottom: 28, fontWeight: 500 }}>
         Sign in as
       </p>
 
-      {/* Role cards */}
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 760 }}>
         {ROLES.map(r => {
           const card = (

@@ -83,7 +83,7 @@ export default function OrganizerDashboard() {
       <div className="fu" style={{ marginBottom: 36 }}>
         <p style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 8 }}>Welcome back</p>
         <h1 style={{ fontFamily: 'var(--ff-display)', fontSize: 36, fontWeight: 400 }}>
-          {user?.full_name || 'Organizer'} <span style={{ color: '#f59e0b' }}>✦</span>
+          {user?.full_name || 'Organizer'}
         </h1>
       </div>
 

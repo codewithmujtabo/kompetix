@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { organizerHttp } from '@/lib/auth/organizer-context';
+import { organizerCompetitionsApi } from '@/lib/api';
 import Link from 'next/link';
 
 interface Competition {

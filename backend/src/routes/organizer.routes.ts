@@ -288,6 +288,65 @@ router.put("/competitions/:id", async (req: Request, res: Response) => {
   }
 });
 
+// ── GET /api/organizers/competitions/:id ─────────────────────────────────
+router.get("/competitions/:id", async (req: Request, res: Response) => {
+  try {
+
+    const { id } = req.params;
+    const competitionId = Array.isArray(id) ? id[0] : id;
+    
+    // Проверяем, принадлежит ли конкурс этому организатору
+    if (!await ownsCompetition(competitionId, req.userId!, (req as any).userRole)) {
+      res.status(403).json({ message: "You do not own this competition" });
+      return;
+    }
+
+    const result = await pool.query(
+      `SELECT 
+         c.*, 
+         COUNT(r.id)::int AS registration_count
+       FROM competitions c
+       LEFT JOIN registrations r ON r.comp_id = c.id
+       WHERE c.id = $1
+       GROUP BY c.id`,
+      [competitionId]
+    );
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ message: "Competition not found" });
+      return;
+    }
+
+    const c = result.rows[0];
+    res.json({
+      id: c.id,
+      name: c.name,
+      organizerName: c.organizer_name,
+      category: c.category,
+      gradeLevel: c.grade_level,
+      fee: c.fee,
+      quota: c.quota,
+      description: c.description,
+      detailedDescription: c.detailed_description,
+      regOpenDate: c.reg_open_date,
+      regCloseDate: c.reg_close_date,
+      competitionDate: c.competition_date,
+      registrationStatus: c.registration_status,
+      isInternational: c.is_international,
+      websiteUrl: c.website_url,
+      imageUrl: c.image_url,
+      posterUrl: c.poster_url,
+      participantInstructions: c.participant_instructions,
+      requiredDocs: c.required_docs,
+      registrationCount: c.registration_count,
+      createdAt: c.created_at,
+    });
+  } catch (err) {
+    console.error("GET /organizers/competitions/:id error:", err);
+    res.status(500).json({ message: "Failed to fetch competition" });
+  }
+});
+
 // ── POST /api/organizers/competitions/:id/publish ─────────────────────────
 router.post("/competitions/:id/publish", async (req: Request, res: Response) => {
   try {
