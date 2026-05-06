@@ -1,6 +1,7 @@
 import { Brand } from "@/constants/theme";
 import { useUser } from "@/context/AuthContext";
 import * as paymentsService from "@/services/payments.service";
+import * as registrationsService from "@/services/registrations.service";
 import * as WebBrowser from "expo-web-browser";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -65,9 +66,24 @@ export default function PayScreen() {
   const { refreshRegistrations } = useUser();
 
   const [paymentState, setPaymentState] = useState<PaymentState>("loading");
+  const [loadingMessage, setLoadingMessage] = useState("Preparing payment...");
   const [errorDetail, setErrorDetail] = useState("");
 
   const started = useRef(false);
+
+  // Poll the registration until it becomes paid (for post-browser-dismiss webhook race)
+  const pollUntilPaid = useCallback(async (regId: string, attempts = 4, delayMs = 2000): Promise<boolean> => {
+    for (let i = 0; i < attempts; i++) {
+      if (i > 0) await new Promise(res => setTimeout(res, delayMs));
+      try {
+        const detail = await registrationsService.getDetail(regId);
+        if (detail.status === "paid") return true;
+      } catch {
+        // ignore transient errors, keep polling
+      }
+    }
+    return false;
+  }, []);
 
   const startPayment = useCallback(async () => {
     if (!registrationId) {
@@ -77,11 +93,14 @@ export default function PayScreen() {
     }
 
     try {
+      setLoadingMessage("Preparing payment...");
       setPaymentState("loading");
 
       const { redirectUrl } = await paymentsService.createSnapToken(registrationId);
 
       setPaymentState("opening");
+      // Dismiss any lingering session from a previous attempt before opening a new one
+      WebBrowser.dismissAuthSession();
       const result = await WebBrowser.openAuthSessionAsync(redirectUrl, "kompetix://");
 
       if (result.type === "success" && result.url) {
@@ -98,9 +117,12 @@ export default function PayScreen() {
           setPaymentState("failed");
         }
       } else {
-        // Browser closed without deep-link — webhook may have already arrived
+        // Browser dismissed — webhook may be in-flight, poll briefly before giving up
+        setLoadingMessage("Verifying payment status...");
+        setPaymentState("loading");
+        const paid = await pollUntilPaid(registrationId);
         await refreshRegistrations();
-        setPaymentState("cancelled");
+        setPaymentState(paid ? "success" : "cancelled");
       }
     } catch (err: any) {
       if (err?.message?.toLowerCase().includes("already paid")) {
@@ -112,7 +134,7 @@ export default function PayScreen() {
       setErrorDetail(err?.message || "");
       setPaymentState("error");
     }
-  }, [registrationId, refreshRegistrations]);
+  }, [registrationId, refreshRegistrations, pollUntilPaid]);
 
   useEffect(() => {
     if (started.current) return;
@@ -125,7 +147,7 @@ export default function PayScreen() {
       <View style={[styles.center, { paddingTop: insets.top }]}>
         <ActivityIndicator size="large" color={Brand.primary} />
         <Text style={styles.loadingText}>
-          {paymentState === "loading" ? "Preparing payment..." : "Opening payment page..."}
+          {paymentState === "opening" ? "Opening payment page..." : loadingMessage}
         </Text>
       </View>
     );
@@ -156,7 +178,7 @@ export default function PayScreen() {
         ) : (
           <TouchableOpacity
             style={styles.primaryBtn}
-            onPress={() => { started.current = false; startPayment(); }}
+            onPress={startPayment}
             activeOpacity={0.85}
           >
             <Text style={styles.primaryBtnText}>Try Again</Text>
@@ -166,7 +188,7 @@ export default function PayScreen() {
         {paymentState === "cancelled" && (
           <TouchableOpacity
             style={styles.secondaryBtn}
-            onPress={() => { started.current = false; startPayment(); }}
+            onPress={startPayment}
             activeOpacity={0.8}
           >
             <Text style={styles.secondaryBtnText}>Pay Now</Text>
@@ -178,7 +200,7 @@ export default function PayScreen() {
           onPress={() => router.back()}
           activeOpacity={0.8}
         >
-          <Text style={styles.secondaryBtnText}>Kembali</Text>
+          <Text style={styles.secondaryBtnText}>Back</Text>
         </TouchableOpacity>
       </View>
     </View>

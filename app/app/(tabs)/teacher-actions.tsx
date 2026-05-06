@@ -24,40 +24,36 @@ export default function TeacherActionsScreen() {
 
   const quickActions = [
     {
-      id: "web-portal",
-      icon: "globe",
-      title: "Bulk Registration",
-      subtitle: "Use the web portal to register multiple students via CSV",
+      id: "view-competitions",
+      icon: "trophy.fill",
+      title: "Competitions",
+      subtitle: "See which competitions your students joined",
       color: "#4F46E5",
-      onPress: () => Linking.openURL("https://kompetix.id/teacher"),
-    },
-    {
-      id: "export-data",
-      icon: "arrow.down.doc.fill",
-      title: "Export Student Data",
-      subtitle: "Download CSV of all students",
-      color: "#10B981",
-      onPress: () => Linking.openURL("https://kompetix.id/teacher"),
-    },
-    {
-      id: "send-reminder",
-      icon: "bell.badge.fill",
-      title: "Send Reminder",
-      subtitle: "Notify students about deadlines",
-      color: "#F59E0B",
-      onPress: () => {
-        console.log("Send reminder — coming soon");
-      },
+      onPress: () => router.push("/(tabs)/teacher-analytics"),
     },
     {
       id: "view-reports",
       icon: "chart.bar.fill",
       title: "View Reports",
-      subtitle: "Detailed performance reports",
+      subtitle: "Detailed performance overview",
       color: "#8B5CF6",
-      onPress: () => {
-        router.push("/(tabs)/teacher-analytics");
-      },
+      onPress: () => router.push("/(tabs)/teacher-analytics"),
+    },
+    {
+      id: "upcoming-deadlines",
+      icon: "calendar.badge.clock",
+      title: "Deadlines",
+      subtitle: "Competitions closing soon",
+      color: "#F59E0B",
+      onPress: () => router.push("/(tabs)/teacher-dashboard"),
+    },
+    {
+      id: "manage-students",
+      icon: "person.3.fill",
+      title: "My Students",
+      subtitle: "View and manage your roster",
+      color: "#10B981",
+      onPress: () => router.push("/(tabs)/teacher-students"),
     },
   ];
 
@@ -88,9 +84,9 @@ export default function TeacherActionsScreen() {
           activeOpacity={0.8}
         >
           <View style={styles.webPortalBannerContent}>
-            <Text style={styles.webPortalBannerTitle}>Full features on the web portal</Text>
+            <Text style={styles.webPortalBannerTitle}>Advanced reports on the web portal</Text>
             <Text style={styles.webPortalBannerBody}>
-              Bulk registration, CSV export, and advanced reports are available at kompetix.id/teacher
+              Full analytics and detailed reports are available at kompetix.id/teacher
             </Text>
           </View>
           <Text style={styles.webPortalBannerArrow}>›</Text>

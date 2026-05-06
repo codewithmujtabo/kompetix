@@ -105,8 +105,14 @@ export default function DiscoverScreen() {
     (user as any)?.name?.split(" ")[0] ??
     "there";
 
-  const userRole = (user as any)?.role || "student";
+  const userRole = (user as any)?.role ?? "";
   const isParent = userRole === "parent";
+
+  // Redirect non-student/parent roles away from this screen
+  useEffect(() => {
+    if (userRole === "teacher") router.replace("/(tabs)/teacher-dashboard");
+    else if (userRole === "admin") router.replace("/(tabs)/web-portal-redirect");
+  }, [userRole]);
 
   const {
     data: allCompetitions = [],

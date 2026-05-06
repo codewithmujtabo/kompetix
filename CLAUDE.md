@@ -200,10 +200,10 @@ EXPO_PUBLIC_API_URL=http://<MAC_LAN_IP>:3000/api
 
 ---
 
-## Current Task Status (as of May 6, 2026)
+## Current Task Status (as of May 6, 2026 — Session 2)
 
-**Sprints 0–8 fully complete (T1–T25 + session extras). All backend tasks done.**
-**QA pass on web portals complete (May 6, 2026 session) — see Sprint 9 below.**
+**Sprints 0–9 fully complete. All backend tasks done.**
+**QA pass on web portals + mobile bug fixes complete (May 6, 2026 session 2).**
 
 ### NEXT STEP TO START:
 Build the missing organizer competition CRUD pages (teammate's task):
@@ -298,6 +298,16 @@ Backend organizer routes for create (`POST /api/organizers/competitions`) and up
 | Dead code | Removed unused OrganizerSidebar component from organizer layout | `web/app/(organizer)/layout.tsx` |
 | Types | PendingRegistration student sub-fields marked optional | `web/types/index.ts` |
 
+### SPRINT 10 — Mobile Bug Fixes (May 6, 2026 Session 2) ✅ COMPLETE
+| Fix | What | Key files |
+|---|---|---|
+| Payment: "Kembali" → "Back" | Indonesian string hardcoded in pay.tsx | `app/app/(payment)/pay.tsx` |
+| Payment: webhook race condition | After paying and closing browser, `refreshRegistrations()` was called before the Midtrans webhook updated the DB. Fix: poll `GET /registrations/:id` up to 4× (every 2s, max ~6s) before giving up. Screen shows "Verifying payment status..." during poll. | `app/app/(payment)/pay.tsx` |
+| Payment: "Another web browser is already open" | iOS keeps previous `openAuthSessionAsync` session "alive" briefly. Fix: call `WebBrowser.dismissAuthSession()` before every `openAuthSessionAsync` call. | `app/app/(payment)/pay.tsx` |
+| Teacher sees Discover screen on login | `_layout.tsx` defaulted `userRole` to `"student"` before context loaded → competitions tab became visible → tab navigator landed there. Fix: default to `""` (empty string) so all role-specific tabs stay hidden during load. | `app/app/(tabs)/_layout.tsx` |
+| Teacher redirect safety net | `competitions.tsx` also defaulted to "student" and had no redirect for teachers. Fix: added `useEffect` that redirects teachers to `/(tabs)/teacher-dashboard` and admins to `/(tabs)/web-portal-redirect` when `userRole` resolves. | `app/app/(tabs)/competitions.tsx` |
+| Teacher "monitoring mode" | Removed Bulk Registration and Export Student Data from teacher quick actions. Replaced with monitoring-only tiles: Competitions, View Reports, Deadlines, My Students. Updated web portal banner text to remove bulk registration mention. | `app/app/(tabs)/teacher-actions.tsx` |
+
 ### SPRINT 8 — UX Fixes & Data Scoping (May 5, 2026) ✅ COMPLETE
 | Task | What | Key files |
 |---|---|---|
@@ -339,6 +349,9 @@ T21 (MinIO) ──────────────► T22 (storage migration
 - The `students` and `parents` tables have orphaned `parent_school_id` columns (Sprint 7 to drop).
 - DB name renamed to `kompetix` locally (May 6, 2026). VPS still needs: `ALTER DATABASE beyond_classroom RENAME TO kompetix;` + update `backend/.env`.
 - There are 3 registrations with status `approved` in the DB (legacy status, pre-T28). These are displayed correctly with a green badge but cannot be acted on via the approval UI. Not a bug — they predate the `pending_approval` flow.
+- `competitions.tsx` defaults `userRole` to `""` (not "student") when user context hasn't loaded. Guard: `useEffect` redirects teachers/admins away. Same change in `_layout.tsx`.
+- `pay.tsx` polling: after browser dismiss, polls `/registrations/:id` up to 4× with 2s gaps before deciding payment was cancelled. This handles the Midtrans sandbox webhook delay.
+- Teacher portal is monitoring-only — no bulk registration or bulk payment actions. All write operations go through the web portal or admin.
 
 ---
 

@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 export default function TabLayout() {
   const { user } = useUser();
   const insets = useSafeAreaInsets();
-  const userRole = (user as any)?.role || "student";
+  const userRole = (user as any)?.role ?? "";
 
   const tabBarHeight =
     Platform.OS === "ios" ? 85 : 60 + insets.bottom;
