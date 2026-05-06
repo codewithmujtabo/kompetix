@@ -68,6 +68,15 @@ export async function createSnapToken(params: {
   };
 }
 
+/**
+ * Fetch the current transaction status from Midtrans for a given order ID.
+ * Returns the raw transaction_status string (e.g. "settlement", "pending", "cancel").
+ */
+export async function getTransactionStatus(orderId: string): Promise<string> {
+  const response = await (coreApi as any).transaction.status(orderId);
+  return response.transaction_status as string;
+}
+
 export interface RefundResult {
   refundKey: string;
   status: string;

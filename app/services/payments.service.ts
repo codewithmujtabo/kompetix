@@ -38,6 +38,17 @@ export async function createManualIntent(
   });
 }
 
+/**
+ * Ask the backend to check Midtrans' Status API and sync the DB.
+ * Fixes sandbox environments where Midtrans can't reach localhost to fire the webhook.
+ * Returns the current registration status after the sync.
+ */
+export async function verifyPayment(
+  registrationId: string
+): Promise<{ status: string }> {
+  return apiRequest<{ status: string }>(`/payments/verify/${registrationId}`);
+}
+
 export async function getPostPaymentRedirectUrl(
   registrationId: string
 ): Promise<{ redirectUrl: string; registrationNumber: string | null }> {

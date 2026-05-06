@@ -178,9 +178,17 @@ router.put("/me", async (req: Request, res: Response) => {
           await pool.query(`UPDATE students SET ${sFields.join(", ")} WHERE id = $${sIdx}`, sValues);
         }
       } else if (role === "teacher") {
-        const { subject } = req.body;
-        if (subject !== undefined) {
-          await pool.query("UPDATE teachers SET subject = $1, updated_at = now() WHERE id = $2", [subject, req.userId]);
+        const { subject, school: teacherSchool, department } = req.body;
+        const tFields: string[] = [];
+        const tValues: any[] = [];
+        let tIdx = 1;
+        if (subject !== undefined) { tFields.push(`subject = $${tIdx++}`); tValues.push(subject); }
+        if (teacherSchool !== undefined) { tFields.push(`school = $${tIdx++}`); tValues.push(teacherSchool); }
+        if (department !== undefined) { tFields.push(`department = $${tIdx++}`); tValues.push(department); }
+        if (tFields.length > 0) {
+          tFields.push(`updated_at = now()`);
+          tValues.push(req.userId);
+          await pool.query(`UPDATE teachers SET ${tFields.join(", ")} WHERE id = $${tIdx}`, tValues);
         }
       }
     }

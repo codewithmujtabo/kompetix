@@ -1,7 +1,6 @@
 import { Brand } from "@/constants/theme";
 import { useUser } from "@/context/AuthContext";
 import * as paymentsService from "@/services/payments.service";
-import * as registrationsService from "@/services/registrations.service";
 import * as WebBrowser from "expo-web-browser";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -71,13 +70,13 @@ export default function PayScreen() {
 
   const started = useRef(false);
 
-  // Poll the registration until it becomes paid (for post-browser-dismiss webhook race)
-  const pollUntilPaid = useCallback(async (regId: string, attempts = 4, delayMs = 2000): Promise<boolean> => {
+  // Poll /payments/verify until DB shows paid — works in sandbox where webhook can't reach localhost
+  const pollVerify = useCallback(async (regId: string, attempts = 6, delayMs = 3000): Promise<boolean> => {
     for (let i = 0; i < attempts; i++) {
       if (i > 0) await new Promise(res => setTimeout(res, delayMs));
       try {
-        const detail = await registrationsService.getDetail(regId);
-        if (detail.status === "paid") return true;
+        const { status } = await paymentsService.verifyPayment(regId);
+        if (status === "paid") return true;
       } catch {
         // ignore transient errors, keep polling
       }
@@ -103,24 +102,34 @@ export default function PayScreen() {
       WebBrowser.dismissAuthSession();
       const result = await WebBrowser.openAuthSessionAsync(redirectUrl, "kompetix://");
 
+      // In both success-redirect and dismiss cases, always verify via backend.
+      // The backend calls Midtrans Status API and syncs the DB — this fixes sandbox
+      // where Midtrans can't reach localhost to fire the webhook.
+      setLoadingMessage("Verifying payment status...");
+      setPaymentState("loading");
+
       if (result.type === "success" && result.url) {
         const urlObj = new URL(result.url);
         const txStatus = urlObj.searchParams.get("transaction_status");
-        const statusCode = urlObj.searchParams.get("status_code");
 
-        if (txStatus === "settlement" || txStatus === "capture" || statusCode === "200") {
+        if (txStatus === "pending") {
           await refreshRegistrations();
-          setPaymentState("success");
-        } else if (txStatus === "pending") {
           setPaymentState("pending");
-        } else {
-          setPaymentState("failed");
+          return;
         }
+
+        if (["deny", "cancel", "expire", "failure"].includes(txStatus ?? "")) {
+          setPaymentState("failed");
+          return;
+        }
+
+        // settlement / capture (or unknown) — verify with backend
+        const paid = await pollVerify(registrationId);
+        await refreshRegistrations();
+        setPaymentState(paid ? "success" : "cancelled");
       } else {
-        // Browser dismissed — webhook may be in-flight, poll briefly before giving up
-        setLoadingMessage("Verifying payment status...");
-        setPaymentState("loading");
-        const paid = await pollUntilPaid(registrationId);
+        // Browser dismissed — verify with backend before giving up
+        const paid = await pollVerify(registrationId);
         await refreshRegistrations();
         setPaymentState(paid ? "success" : "cancelled");
       }
@@ -134,7 +143,7 @@ export default function PayScreen() {
       setErrorDetail(err?.message || "");
       setPaymentState("error");
     }
-  }, [registrationId, refreshRegistrations, pollUntilPaid]);
+  }, [registrationId, refreshRegistrations, pollVerify]);
 
   useEffect(() => {
     if (started.current) return;

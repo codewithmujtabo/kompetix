@@ -5,7 +5,7 @@ import { pool } from "../config/database";
 import { env } from "../config/env";
 import { authMiddleware } from "../middleware/auth";
 import { schoolAdminOnly } from "../middleware/school-admin.middleware";
-import { createSnapToken } from "../services/midtrans.service";
+import { createSnapToken, getTransactionStatus } from "../services/midtrans.service";
 import * as pushService from "../services/push.service";
 
 const router = Router();
@@ -264,6 +264,81 @@ router.post("/snap", async (req: Request, res: Response) => {
   }
 });
 
+
+// ── GET /api/payments/verify/:registrationId ─────────────────────────────────
+// Polls Midtrans Status API and syncs DB — fixes sandbox where webhook can't reach localhost.
+// Returns { status } where status is the current registrations.status value.
+router.get("/verify/:registrationId", async (req: Request, res: Response) => {
+  try {
+    const registrationId = req.params.registrationId as string;
+
+    // Ensure this registration belongs to the authenticated user (or a linked parent)
+    const accessible = await canAccessRegistration(req.userId!, registrationId);
+    if (!accessible) {
+      res.status(403).json({ message: "Forbidden" });
+      return;
+    }
+
+    // Look up payment record
+    const payRow = await pool.query(
+      `SELECT p.order_id, r.status as reg_status
+       FROM payments p
+       JOIN registrations r ON r.id = p.registration_id
+       WHERE p.registration_id = $1
+       ORDER BY p.created_at DESC
+       LIMIT 1`,
+      [registrationId]
+    );
+
+    if (payRow.rows.length === 0) {
+      res.json({ status: "no_payment" });
+      return;
+    }
+
+    const { order_id, reg_status } = payRow.rows[0];
+
+    // If already paid in DB, nothing to do
+    if (reg_status === "paid") {
+      res.json({ status: "paid" });
+      return;
+    }
+
+    // Ask Midtrans for the real transaction status
+    let txStatus: string;
+    try {
+      txStatus = await getTransactionStatus(order_id);
+    } catch {
+      // Midtrans returns 404 if transaction doesn't exist yet — not an error
+      res.json({ status: reg_status });
+      return;
+    }
+
+    const isSettled =
+      txStatus === "settlement" ||
+      txStatus === "capture";
+
+    if (isSettled) {
+      // Update DB to match Midtrans — same logic as webhook
+      await pool.query(
+        `UPDATE payments SET payment_status = 'settlement', updated_at = now()
+         WHERE order_id = $1`,
+        [order_id]
+      );
+      await pool.query(
+        `UPDATE registrations SET status = 'paid', updated_at = now() WHERE id = $1`,
+        [registrationId]
+      );
+      console.log(`Verify endpoint: forced paid for registration ${registrationId} (order ${order_id})`);
+      res.json({ status: "paid" });
+      return;
+    }
+
+    res.json({ status: reg_status });
+  } catch (err) {
+    console.error("Verify payment error:", err);
+    res.status(500).json({ message: "Internal error" });
+  }
+});
 
 // ── GET /api/payments/redirect/:registrationId ───────────────────────────────
 // T9: Returns a short-lived redirect URL (1 h JWT) for the organizer's post-payment page.
