@@ -98,8 +98,9 @@ EXPO_PUBLIC_API_URL=http://<MAC_LAN_IP>:3000/api
 - Schema is in `backend/src/db/schema.sql`.
 - Tables: `users`, `students`, `parents`, `teachers`, `competitions`, `competition_rounds`, `registrations`, `payments`, `documents`, `notifications`, `otp_codes`, `invitations`, `parent_student_links`, `teacher_student_links`, `bulk_registration_jobs`, `favorites`, `schools`, `historical_participants`, `school_payment_batches`, `school_payment_batch_items`.
 - Migrations live in `backend/migrations/` as timestamped `.sql` files. Run with `npm run db:migrate`.
-- `DATABASE_URL` format: `postgresql://user:password@localhost:5432/beyond_classroom` (DB name still `beyond_classroom` — rename to `kompetix` eventually).
+- `DATABASE_URL` format: `postgresql://user:password@localhost:5432/kompetix` (**renamed from `beyond_classroom` on May 6, 2026 — local DB is already renamed**).
 - **Latest migration:** `1746500000000_teacher-student-links.sql` — must be run on VPS.
+- **students table school column:** The column is `school_name TEXT` (not `school`). There is also a `school_id UUID` FK to the `schools` table. Always use `COALESCE(sc.name, s.school_name)` with a `LEFT JOIN schools sc ON s.school_id = sc.id` when you need the school name in queries.
 
 ### Registration Flow (updated May 2026)
 1. Student registers → status = `pending_approval`
@@ -152,19 +153,35 @@ EXPO_PUBLIC_API_URL=http://<MAC_LAN_IP>:3000/api
 - Falls back to querying the local `schools` DB table when key is not set (returns up to 20 matches by name).
 
 ### Web Portal Structure
+- `web/app/page.tsx` — **Role selector landing page** (Admin → `/login`, Organizer → `/organizer-login`, Teacher disabled/coming soon)
 - `web/app/(dashboard)/` — Admin portal (auth-guarded by `(dashboard)/layout.tsx`)
 - `web/app/(dashboard)/dashboard/page.tsx` — Dashboard home
-- `web/app/(dashboard)/registrations/page.tsx` — **Pending registration approvals** (approve/reject with reason)
-- `web/app/(dashboard)/competitions/page.tsx` — Competition management
+- `web/app/(dashboard)/registrations/page.tsx` — **All registrations** with status filter tabs (All/Pending/Registered/Paid/Rejected); approve/reject only for `pending_approval`
+- `web/app/(dashboard)/competitions/page.tsx` — Competition management (create/edit/delete)
 - `web/app/(dashboard)/users/page.tsx` — User management
 - `web/app/(dashboard)/schools/page.tsx` — Schools management
 - `web/app/(dashboard)/notifications/page.tsx` — Broadcast notifications
-- `web/app/page.tsx` — Root `/` redirects to `/dashboard`
-- `web/app/login/page.tsx` — Admin login
-- `web/lib/api/index.ts` — All API call functions (authApi, schoolsApi, competitionsApi, usersApi, registrationsApi, notificationsApi)
-- `web/lib/auth/context.tsx` — Auth context with localStorage JWT
-- `web/components/Sidebar.tsx` — Nav (uses `next/link` + `usePathname`, not React Router)
+- `web/app/login/page.tsx` — Admin login (has ← Back button to role selector)
+- `web/app/(organizer)/` — Organizer portal (auth-guarded by `(organizer)/layout.tsx`)
+- `web/app/(organizer)/organizer-login/page.tsx` — Organizer login (has ← Back button to role selector)
+- `web/app/(organizer)/organizer-dashboard/page.tsx` — Organizer dashboard
+- `web/app/(organizer)/organizer-competitions/page.tsx` — Competitions list (publish/close actions)
+- `web/app/(organizer)/participants/page.tsx` — Participants view per competition (approve/reject)
+- `web/app/(organizer)/revenue/page.tsx` — Revenue overview (stat cards + per-competition table)
+- `web/lib/api/index.ts` — All admin API call functions
+- `web/lib/auth/context.tsx` — Admin auth context (localStorage: `admin_token` / `admin_user`)
+- `web/lib/auth/organizer-context.tsx` — Organizer auth context (localStorage: `organizer_token` / `organizer_user`)
+- `web/components/Sidebar.tsx` — Admin nav
 - `web/next.config.mjs` — API proxy config (`.ts` version not supported in Next.js 14 — keep `.mjs`)
+
+**Organizer portal missing pages (not yet built — teammate's task):**
+- `web/app/(organizer)/organizer-competitions/new/page.tsx` — Create competition form
+- `web/app/(organizer)/organizer-competitions/[id]/page.tsx` — Competition detail view
+- `web/app/(organizer)/organizer-competitions/[id]/edit/page.tsx` — Edit competition form
+
+**Test accounts (local dev):**
+- Admin: `admin@eduversal.com` / (password set via `npm run db:create-admin` in backend)
+- Organizer: `organizer@eduversal.com` / (password set via `npm run db:create-organizer` in backend)
 
 ### Historical Data (IMPORTED ✅)
 - 63,365 real participant records imported into `historical_participants` table.
@@ -183,17 +200,23 @@ EXPO_PUBLIC_API_URL=http://<MAC_LAN_IP>:3000/api
 
 ---
 
-## Current Task Status (as of May 5, 2026)
+## Current Task Status (as of May 6, 2026)
 
 **Sprints 0–8 fully complete (T1–T25 + session extras). All backend tasks done.**
+**QA pass on web portals complete (May 6, 2026 session) — see Sprint 9 below.**
 
 ### NEXT STEP TO START:
-Integration + QA with teammate's web portals (weeks 7–8).
-The new `/registrations` page in `web/` is ready for the teammate to use — they need to log in as admin and approve/reject registrations that students submit from the app.
+Build the missing organizer competition CRUD pages (teammate's task):
+- `web/app/(organizer)/organizer-competitions/new/page.tsx`
+- `web/app/(organizer)/organizer-competitions/[id]/page.tsx`
+- `web/app/(organizer)/organizer-competitions/[id]/edit/page.tsx`
+
+Backend organizer routes for create (`POST /api/organizers/competitions`) and update (`PUT /api/organizers/competitions/:id`) already exist in `organizer.routes.ts`.
 
 **Also pending (VPS, do manually):**
 - **T21** — MinIO Docker on VPS: `docker run -d -p 9000:9000 -p 9001:9001 -e MINIO_ROOT_USER=... -e MINIO_ROOT_PASSWORD=... quay.io/minio/minio server /data --console-address :9001`, then set the 5 `MINIO_*` env vars in `backend/.env`.
 - **Run migration on VPS:** `npm run db:migrate` to apply `1746500000000_teacher-student-links.sql`.
+- **Rename DB on VPS:** `ALTER DATABASE beyond_classroom RENAME TO kompetix;` then update `DATABASE_URL` in VPS `backend/.env`.
 - **api.co.id key:** Register at api.co.id to get `API_CO_ID_KEY` for real school search in signup.
 - **Expo project ID:** Run `npx eas init` inside `app/` for production push notifications.
 
@@ -258,6 +281,23 @@ The new `/registrations` page in `web/` is ready for the teammate to use — the
 | T24 | ✅ | Add referral_code column to registrations | `1746400000000_add-referral-code.sql` + `registrations.routes.ts` |
 | T25 | ✅ | Admin refund endpoint | `midtrans.service.ts` + `admin.routes.ts` |
 
+### SPRINT 9 — Web Portal QA Pass (May 6, 2026) ✅ COMPLETE
+| Fix | What | Key files |
+|---|---|---|
+| DB rename | PostgreSQL `beyond_classroom` → `kompetix` locally; `.env` + `.env.example` updated | `backend/.env`, `backend/.env.example` |
+| Role selector | `/` is now a role-selector landing page (Admin / Organizer / Teacher-soon) instead of redirect | `web/app/page.tsx` |
+| Back buttons | `← Back` on both login pages to return to role selector | `web/app/login/page.tsx`, `web/app/(organizer)/organizer-login/page.tsx` |
+| School column fix | `s.school` → `s.school_name` in all 6 queries across admin & organizer routes | `backend/src/routes/admin.routes.ts`, `backend/src/routes/organizer.routes.ts` |
+| Organizer competitions | Assigned all 21 NULL-owned competitions to organizer account; `POST /admin/competitions` now sets `created_by` | `backend/src/routes/admin.routes.ts` |
+| Admin registrations | Page now shows all statuses with filter tabs (All/Pending/Registered/Paid/Rejected) | `web/app/(dashboard)/registrations/page.tsx`, `backend/src/routes/admin.routes.ts` |
+| Organizer login redirect | Fixed wrong redirect `/organizer/organizer-dashboard` → `/organizer-dashboard` | `web/app/(organizer)/organizer-login/page.tsx` |
+| Participants status | Fixed STATUS_CLS map and approve/reject button condition (was using wrong statuses) | `web/app/(organizer)/participants/page.tsx` |
+| Missing API methods | Added `competitionsApi.create/update/delete` to web API client | `web/lib/api/index.ts` |
+| Null guards | Defensive `?? []` / `?? 0` on users/schools pagination state setters | `web/app/(dashboard)/users/page.tsx`, `web/app/(dashboard)/schools/page.tsx` |
+| Revenue page | New organizer revenue page with stat cards + per-competition table | `web/app/(organizer)/revenue/page.tsx` |
+| Dead code | Removed unused OrganizerSidebar component from organizer layout | `web/app/(organizer)/layout.tsx` |
+| Types | PendingRegistration student sub-fields marked optional | `web/types/index.ts` |
+
 ### SPRINT 8 — UX Fixes & Data Scoping (May 5, 2026) ✅ COMPLETE
 | Task | What | Key files |
 |---|---|---|
@@ -297,7 +337,8 @@ T21 (MinIO) ──────────────► T22 (storage migration
 - `app/constants/api.ts` and `app/config/api.ts` both exist — app uses `config/api.ts`. The constants one is legacy.
 - Competition `id` column is `TEXT` (not UUID) — changed in migration `1744070500000`. IDs look like `comp_emc_2026_main`.
 - The `students` and `parents` tables have orphaned `parent_school_id` columns (Sprint 7 to drop).
-- DB name is still `beyond_classroom` — should be renamed to `kompetix` before production.
+- DB name renamed to `kompetix` locally (May 6, 2026). VPS still needs: `ALTER DATABASE beyond_classroom RENAME TO kompetix;` + update `backend/.env`.
+- There are 3 registrations with status `approved` in the DB (legacy status, pre-T28). These are displayed correctly with a green badge but cannot be acted on via the approval UI. Not a bug — they predate the `pending_approval` flow.
 
 ---
 
