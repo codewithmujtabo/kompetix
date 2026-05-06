@@ -115,6 +115,8 @@ EXPO_PUBLIC_API_URL=http://<MAC_LAN_IP>:3000/api
 - Webhook at `POST /api/payments/webhook` — verifies Midtrans signature, marks `registrations.status = 'paid'` on settlement.
 - **Payment proof upload has been removed** — Midtrans auto-confirms.
 - VA expiry: webhook `expire` event resets registration back to `registered` (T10 fix).
+- **Verify endpoint:** `GET /api/payments/verify/:registrationId` — calls Midtrans Status API directly and force-updates DB to `paid` when settled. Used by the app after browser close to sync status without relying on the webhook (which can't reach localhost in sandbox). In production the webhook still handles it; verify is a belt-and-suspenders backup.
+- `pay.tsx` always calls verify after the payment browser closes (both "Return to merchant" and user-dismiss paths). Only shows "Payment Completed!" when DB confirms `paid`. Polls up to 6× with 3s gaps (~18s total).
 - Sandbox keys are in `.env`. Switch to production keys before launch.
 
 ### File Storage (Current — Needs Migration)
@@ -138,9 +140,17 @@ EXPO_PUBLIC_API_URL=http://<MAC_LAN_IP>:3000/api
 - Teacher explicitly links students they supervise — no automatic school-based scoping.
 - `POST /api/teachers/link-student` — teacher adds student by email (direct link, no PIN).
 - `DELETE /api/teachers/link-student/:studentId` — remove from roster.
-- Links stored in `teacher_student_links` table (migration `1746500000000_teacher-student-links.sql`).
+- Links stored in `teacher_student_links` table (migration `1746500000000_teacher-student-links.sql` — **already applied locally and on VPS**).
 - **All teacher dashboard data is scoped to linked students only** — `GET /api/teachers/my-students`, `GET /api/teachers/my-competitions`, `GET /api/teachers/dashboard-summary`.
 - App: `teacher-students.tsx` → manage roster; `teacher-analytics.tsx` → competitions my students joined.
+- Teacher portal is **monitoring-only** — no bulk registration or bulk payment actions from the app. All write operations go through the web portal or admin.
+
+### Profile Edit (role-aware, updated May 2026)
+- `app/app/(tabs)/profile/edit.tsx` renders different fields per role — do NOT add student-specific fields for teacher/parent.
+- **Student**: Personal Details (name, DOB, phone, email, city, interests, referral) + Student Card upload + School Details + Supervisor/Teacher + Parent/Guardian sections.
+- **Teacher**: Personal Details (name, phone, email, city) + Professional Info (school, subject, department).
+- **Parent**: Personal Details only (name, phone, email, city).
+- Backend `PUT /api/users/me` saves `school` + `department` for teachers (not just `subject`).
 
 ### Regions (Province/City)
 - App calls emsifa.com **directly** (not through backend) with in-memory cache.
@@ -200,10 +210,10 @@ EXPO_PUBLIC_API_URL=http://<MAC_LAN_IP>:3000/api
 
 ---
 
-## Current Task Status (as of May 6, 2026 — Session 2)
+## Current Task Status (as of May 6, 2026 — Session 3)
 
-**Sprints 0–9 fully complete. All backend tasks done.**
-**QA pass on web portals + mobile bug fixes complete (May 6, 2026 session 2).**
+**Sprints 0–11 fully complete. All backend tasks done.**
+**Bug fixes: teacher DB migration, role-aware profile edit, payment verify endpoint (May 6, 2026 session 3).**
 
 ### NEXT STEP TO START:
 Build the missing organizer competition CRUD pages (teammate's task):
@@ -215,7 +225,7 @@ Backend organizer routes for create (`POST /api/organizers/competitions`) and up
 
 **Also pending (VPS, do manually):**
 - **T21** — MinIO Docker on VPS: `docker run -d -p 9000:9000 -p 9001:9001 -e MINIO_ROOT_USER=... -e MINIO_ROOT_PASSWORD=... quay.io/minio/minio server /data --console-address :9001`, then set the 5 `MINIO_*` env vars in `backend/.env`.
-- **Run migration on VPS:** `npm run db:migrate` to apply `1746500000000_teacher-student-links.sql`.
+- **Run migrations on VPS:** `npm run db:migrate` to apply `1746500000000_teacher-student-links.sql` (already applied locally).
 - **Rename DB on VPS:** `ALTER DATABASE beyond_classroom RENAME TO kompetix;` then update `DATABASE_URL` in VPS `backend/.env`.
 - **api.co.id key:** Register at api.co.id to get `API_CO_ID_KEY` for real school search in signup.
 - **Expo project ID:** Run `npx eas init` inside `app/` for production push notifications.
@@ -308,6 +318,15 @@ Backend organizer routes for create (`POST /api/organizers/competitions`) and up
 | Teacher redirect safety net | `competitions.tsx` also defaulted to "student" and had no redirect for teachers. Fix: added `useEffect` that redirects teachers to `/(tabs)/teacher-dashboard` and admins to `/(tabs)/web-portal-redirect` when `userRole` resolves. | `app/app/(tabs)/competitions.tsx` |
 | Teacher "monitoring mode" | Removed Bulk Registration and Export Student Data from teacher quick actions. Replaced with monitoring-only tiles: Competitions, View Reports, Deadlines, My Students. Updated web portal banner text to remove bulk registration mention. | `app/app/(tabs)/teacher-actions.tsx` |
 
+### SPRINT 11 — Bug Fixes (May 6, 2026 Session 3) ✅ COMPLETE
+| Fix | What | Key files |
+|---|---|---|
+| Teacher DB migration | `teacher_student_links` table was missing locally → "relation does not exist" when adding student by email. Fix: `npm run db:migrate`. | `backend/migrations/1746500000000_teacher-student-links.sql` |
+| Role-aware profile edit | `edit.tsx` was showing "Student Details" + all student fields for every role. Rewritten to render role-specific sections: student (full), teacher (personal + professional), parent (personal only). | `app/app/(tabs)/profile/edit.tsx` |
+| Teacher profile update | Backend `PUT /api/users/me` only saved `subject` for teachers. Now also saves `school` and `department`. | `backend/src/routes/users.routes.ts` |
+| Payment verify endpoint | After paying, app showed "Payment Completed!" based on redirect URL params, but DB still showed `registered` (webhook never fires to localhost in sandbox). Added `GET /api/payments/verify/:registrationId` that calls Midtrans Status API, force-updates DB if settled. | `backend/src/routes/payments.routes.ts`, `backend/src/services/midtrans.service.ts` |
+| pay.tsx verify flow | App now always calls verify endpoint after browser close instead of trusting URL params. Polls up to 6× with 3s gaps. Only shows "Payment Completed!" when DB confirms `paid`. | `app/app/(payment)/pay.tsx`, `app/services/payments.service.ts` |
+
 ### SPRINT 8 — UX Fixes & Data Scoping (May 5, 2026) ✅ COMPLETE
 | Task | What | Key files |
 |---|---|---|
@@ -350,8 +369,7 @@ T21 (MinIO) ──────────────► T22 (storage migration
 - DB name renamed to `kompetix` locally (May 6, 2026). VPS still needs: `ALTER DATABASE beyond_classroom RENAME TO kompetix;` + update `backend/.env`.
 - There are 3 registrations with status `approved` in the DB (legacy status, pre-T28). These are displayed correctly with a green badge but cannot be acted on via the approval UI. Not a bug — they predate the `pending_approval` flow.
 - `competitions.tsx` defaults `userRole` to `""` (not "student") when user context hasn't loaded. Guard: `useEffect` redirects teachers/admins away. Same change in `_layout.tsx`.
-- `pay.tsx` polling: after browser dismiss, polls `/registrations/:id` up to 4× with 2s gaps before deciding payment was cancelled. This handles the Midtrans sandbox webhook delay.
-- Teacher portal is monitoring-only — no bulk registration or bulk payment actions. All write operations go through the web portal or admin.
+- `pay.tsx` polling: after browser close (any path), calls `GET /api/payments/verify/:registrationId` up to 6× with 3s gaps. The verify endpoint calls Midtrans Status API and force-updates DB — this is what makes sandbox work without a live webhook. In production the webhook arrives first and verify is a no-op.
 
 ---
 
