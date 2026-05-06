@@ -22,13 +22,13 @@ const ROLES = [
     disabled: false,
   },
   {
-    key: 'teacher',
-    icon: '📚',
-    label: 'Teacher',
-    desc: 'View your students and their competition results',
-    href: '#',
+    key: 'school',
+    icon: '🏫',
+    label: 'School',
+    desc: 'Register and manage students,teams',
+    href: '/school-login',
     color: '#22c55e',
-    disabled: true,
+    disabled: false,
   },
 ];
 
@@ -56,7 +56,7 @@ export default function RoleSelector() {
         Sign in as
       </p>
 
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 760 }}>
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 860 }}>
         {ROLES.map(r => {
           const card = (
             <div
