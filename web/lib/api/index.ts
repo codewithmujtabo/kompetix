@@ -26,20 +26,22 @@ export const competitionsApi = {
     if (p.limit)    q.set('limit',    String(p.limit));
     if (p.category) q.set('category', p.category);
     if (p.search)   q.set('search',   p.search);
-    
-    return http.get<Competition[]>(`/admin/competitions?${q}`).then(data => {
-      return {
-        competitions: data,
-        pagination: {
-          total: data.length,
-          page: p.page || 1,
-          limit: p.limit || 15,
-          totalPages: Math.ceil(data.length / (p.limit || 15))
-        }
-      };
-    });
+    return http.get<Competition[]>(`/admin/competitions?${q}`).then(data => ({
+      competitions: data,
+      pagination: {
+        total: data.length,
+        page: p.page || 1,
+        limit: p.limit || 15,
+        totalPages: Math.ceil(data.length / (p.limit || 15)),
+      },
+    }));
   },
-
+  create: (data: Partial<Competition>) =>
+    http.post<Competition>('/admin/competitions', data),
+  update: (id: string, data: Partial<Competition>) =>
+    http.put<Competition>(`/admin/competitions/${id}`, data),
+  delete: (id: string) =>
+    http.delete<{ message: string }>(`/admin/competitions/${id}`),
 };
 
 export const usersApi = {
@@ -54,8 +56,8 @@ export const usersApi = {
 };
 
 export const registrationsApi = {
-  listPending: () =>
-    http.get<{ pendingRegistrations: PendingRegistration[] }>('/admin/registrations/pending'),
+  listPending: (status = 'pending_approval') =>
+    http.get<{ pendingRegistrations: PendingRegistration[] }>(`/admin/registrations/pending?status=${status}`),
   approve: (id: string) =>
     http.post<{ message: string; status: string }>(`/admin/registrations/${id}/approve`, {}),
   reject: (id: string, reason: string) =>

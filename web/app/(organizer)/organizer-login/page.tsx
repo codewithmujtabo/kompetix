@@ -15,7 +15,7 @@ export default function OrganizerLogin() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!loading && user) router.replace('/organizer/organizer-dashboard');
+    if (!loading && user) router.replace('/organizer-dashboard');
   }, [user, loading, router]);
 
   const submit = async (e: FormEvent) => {
@@ -23,7 +23,7 @@ export default function OrganizerLogin() {
     setError(''); setSubmitting(true);
     try {
       await login(email, password);
-      router.replace('/organizer/organizer-dashboard');
+      router.replace('/organizer-dashboard');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Login failed');
     } finally {
@@ -33,6 +33,9 @@ export default function OrganizerLogin() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, background: 'radial-gradient(ellipse at 60% 20%,rgba(99,102,241,.07) 0%,transparent 60%),var(--bg)' }}>
+      <button onClick={() => router.replace('/')} style={{ position: 'fixed', top: 20, left: 20, display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: '1px solid var(--border-light)', borderRadius: 8, padding: '7px 14px', color: 'var(--text-3)', fontSize: 13, cursor: 'pointer' }}>
+        ← Back
+      </button>
       <div className="fu" style={{ width: '100%', maxWidth: 380 }}>
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
           <div style={{ width: 48, height: 48, borderRadius: 13, background: 'linear-gradient(135deg,#f59e0b,#f97316)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, marginBottom: 18, boxShadow: '0 0 28px rgba(245,158,11,.2)' }}>🏆</div>

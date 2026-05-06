@@ -60,10 +60,7 @@ router.post("/competitions", async (req, res) => {
 
     const {
       name,
-      organizerName,
       category,
-      gradeLevel,
-      websiteUrl,
       registrationStatus,
       posterUrl,
       isInternational,
@@ -71,14 +68,17 @@ router.post("/competitions", async (req, res) => {
       description,
       fee,
       quota,
-      regOpenDate,
-      regCloseDate,
-      competitionDate,
       requiredDocs,
       imageUrl,
       participantInstructions,
       rounds,
     } = req.body;
+    const organizerName   = req.body.organizerName   ?? req.body.organizer_name;
+    const gradeLevel      = req.body.gradeLevel      ?? req.body.grade_level;
+    const websiteUrl      = req.body.websiteUrl      ?? req.body.website_url;
+    const regOpenDate     = req.body.regOpenDate     ?? req.body.reg_open_date;
+    const regCloseDate    = req.body.regCloseDate    ?? req.body.reg_close_date;
+    const competitionDate = req.body.competitionDate ?? req.body.competition_date;
 
     // Generate competition ID
     const slug = name
@@ -97,9 +97,9 @@ router.post("/competitions", async (req, res) => {
         website_url, registration_status, poster_url, is_international,
         detailed_description, description, fee, quota,
         reg_open_date, reg_close_date, competition_date,
-        required_docs, image_url, round_count
-        , participant_instructions
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+        required_docs, image_url, round_count,
+        participant_instructions, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
       RETURNING *`,
       [
         compId,
@@ -122,6 +122,7 @@ router.post("/competitions", async (req, res) => {
         imageUrl,
         rounds?.length || 0,
         participantInstructions || null,
+        req.userId,
       ]
     );
 
@@ -179,10 +180,7 @@ router.put("/competitions/:id", async (req, res) => {
     const { id } = req.params;
     const {
       name,
-      organizerName,
       category,
-      gradeLevel,
-      websiteUrl,
       registrationStatus,
       posterUrl,
       isInternational,
@@ -190,14 +188,17 @@ router.put("/competitions/:id", async (req, res) => {
       description,
       fee,
       quota,
-      regOpenDate,
-      regCloseDate,
-      competitionDate,
       requiredDocs,
       imageUrl,
       participantInstructions,
       rounds,
     } = req.body;
+    const organizerName   = req.body.organizerName   ?? req.body.organizer_name;
+    const gradeLevel      = req.body.gradeLevel      ?? req.body.grade_level;
+    const websiteUrl      = req.body.websiteUrl      ?? req.body.website_url;
+    const regOpenDate     = req.body.regOpenDate     ?? req.body.reg_open_date;
+    const regCloseDate    = req.body.regCloseDate    ?? req.body.reg_close_date;
+    const competitionDate = req.body.competitionDate ?? req.body.competition_date;
 
     // Update competition
     const compResult = await client.query(
@@ -348,7 +349,7 @@ router.get("/competitions/:id/registrations", async (req, res) => {
         u.email,
         u.phone,
         s.nisn,
-        s.school_name,
+        COALESCE(sc.name, s.school_name) AS school_name,
         s.grade,
         s.date_of_birth,
         s.school_address,
@@ -357,6 +358,7 @@ router.get("/competitions/:id/registrations", async (req, res) => {
       FROM registrations r
       JOIN users u ON r.user_id = u.id
       LEFT JOIN students s ON u.id = s.id
+      LEFT JOIN schools sc ON s.school_id = sc.id
       WHERE r.comp_id = $1
       ORDER BY r.created_at DESC`,
       [id]
@@ -386,7 +388,7 @@ router.get("/competitions/:id/registrations/export", async (req, res) => {
         u.email,
         u.phone,
         s.nisn,
-        s.school_name,
+        COALESCE(sc.name, s.school_name) AS school_name,
         s.grade,
         s.date_of_birth,
         s.school_address,
@@ -394,6 +396,7 @@ router.get("/competitions/:id/registrations/export", async (req, res) => {
       FROM registrations r
       JOIN users u ON r.user_id = u.id
       LEFT JOIN students s ON u.id = s.id
+      LEFT JOIN schools sc ON s.school_id = sc.id
       WHERE r.comp_id = $1
       ORDER BY r.created_at DESC`,
       [id]
@@ -522,10 +525,15 @@ router.get("/stats", async (req, res) => {
 
 /**
  * GET /api/admin/registrations/pending
- * Get all pending review registrations
+ * Get registrations filtered by status (default: pending_approval, use ?status=all for all)
  */
 router.get("/registrations/pending", async (req, res) => {
   try {
+    const statusFilter = (req.query.status as string) || "pending_approval";
+    const whereClause = statusFilter === "all"
+      ? ""
+      : `WHERE r.status = '${statusFilter}'`;
+
     const result = await pool.query(
       `SELECT
         r.id as registration_id,
@@ -536,7 +544,7 @@ router.get("/registrations/pending", async (req, res) => {
         u.full_name as student_name,
         u.email as student_email,
         u.phone as student_phone,
-        s.school_name,
+        COALESCE(sc.name, s.school_name) AS school_name,
         s.grade,
         s.nisn,
         c.id as competition_id,
@@ -545,8 +553,9 @@ router.get("/registrations/pending", async (req, res) => {
       FROM registrations r
       JOIN users u ON r.user_id = u.id
       LEFT JOIN students s ON u.id = s.id
+      LEFT JOIN schools sc ON s.school_id = sc.id
       JOIN competitions c ON r.comp_id = c.id
-      WHERE r.status = 'pending_approval'
+      ${whereClause}
       ORDER BY r.created_at DESC`
     );
 
@@ -590,13 +599,14 @@ router.get("/registrations/:id", async (req, res) => {
       `SELECT
         r.*,
         u.full_name, u.email, u.phone, u.city,
-        s.school_name, s.grade, s.nisn,
+        COALESCE(sc.name, s.school_name) AS school_name, s.grade, s.nisn,
         c.name as competition_name, c.fee, c.category,
         p.payment_proof_url, p.proof_submitted_at, p.payment_method, p.amount,
         admin_user.full_name as reviewed_by_name
       FROM registrations r
       JOIN users u ON r.user_id = u.id
       LEFT JOIN students s ON u.id = s.id
+      LEFT JOIN schools sc ON s.school_id = sc.id
       JOIN competitions c ON r.comp_id = c.id
       LEFT JOIN payments p ON r.id = p.registration_id
       LEFT JOIN users admin_user ON r.reviewed_by = admin_user.id

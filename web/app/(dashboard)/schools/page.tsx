@@ -22,7 +22,7 @@ export default function Schools() {
     setLoading(true);
     try {
       const r = await schoolsApi.list({ page, limit: LIMIT, search: search || undefined });
-      setSchools(r.schools); setTotal(r.pagination.total);
+      setSchools(r?.schools ?? []); setTotal(r?.pagination?.total ?? 0);
     } catch (e) { setMsg({ ok: false, text: (e as Error).message }); }
     finally { setLoading(false); }
   };

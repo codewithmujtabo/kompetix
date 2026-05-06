@@ -357,12 +357,13 @@ router.get("/competitions/:id/registrations", async (req: Request, res: Response
          r.id, r.status, r.registration_number, r.created_at,
          r.reviewed_at, r.rejection_reason,
          u.id AS user_id, u.full_name, u.email, u.phone,
-         s.nisn, s.school AS school_name, s.grade,
+         s.nisn, COALESCE(sc.name, s.school_name) AS school_name, s.grade,
          p.id AS payment_id, p.payment_status, p.amount,
          p.payment_proof_url, p.proof_submitted_at
        FROM registrations r
        JOIN users u ON r.user_id = u.id
        LEFT JOIN students s ON u.id = s.id
+       LEFT JOIN schools sc ON s.school_id = sc.id
        LEFT JOIN payments p ON r.id = p.registration_id
        WHERE r.comp_id = $1
        ORDER BY r.created_at DESC`,
@@ -538,11 +539,12 @@ router.get("/competitions/:id/export", async (req: Request, res: Response) => {
          r.id AS registration_id, r.registration_number, r.status,
          r.created_at AS registration_date,
          u.full_name, u.email, u.phone,
-         s.nisn, s.school AS school_name, s.grade,
+         s.nisn, COALESCE(sc.name, s.school_name) AS school_name, s.grade,
          p.payment_status, p.amount AS paid_amount, p.payment_method
        FROM registrations r
        JOIN users u ON r.user_id = u.id
        LEFT JOIN students s ON u.id = s.id
+       LEFT JOIN schools sc ON s.school_id = sc.id
        LEFT JOIN payments p ON r.id = p.registration_id
        WHERE r.comp_id = $1
        ORDER BY r.created_at DESC`,

@@ -14,8 +14,10 @@ interface Registration {
 }
 
 const STATUS_CLS: Record<string, string> = {
-  approved: 'badge-green', pending: 'badge-yellow',
-  rejected: 'badge-red',  submitted: 'badge-indigo',
+  pending_approval: 'badge-yellow',
+  registered:       'badge-indigo',
+  paid:             'badge-green',
+  rejected:         'badge-red',
 };
 
 function Spinner() { return <span className="spin" />; }
@@ -147,7 +149,7 @@ export default function OrganizerParticipants() {
                         {new Date(r.createdAt).toLocaleDateString()}
                       </td>
                       <td style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-light)' }}>
-                        {r.status === 'submitted' || r.status === 'pending' ? (
+                        {r.status === 'pending_approval' ? (
                           <div style={{ display: 'flex', gap: 6 }}>
                             <button className="btn btn-primary" onClick={() => approve(r.id)}
                               style={{ padding: '4px 10px', fontSize: 11, background: '#22c55e', border: 'none' }}>

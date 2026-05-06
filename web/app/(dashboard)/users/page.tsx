@@ -26,7 +26,7 @@ export default function Users() {
     setLoading(true);
     try {
       const r = await usersApi.list({ page, limit: LIMIT, role: role || undefined, search: search || undefined });
-      setUsers(r.users); setTotal(r.pagination.total);
+      setUsers(r?.users ?? []); setTotal(r?.pagination?.total ?? 0);
     } catch (e) { setMsg({ ok: false, text: (e as Error).message }); }
     finally { setLoading(false); }
   };

@@ -48,10 +48,10 @@ export interface PendingRegistration {
     id: string;
     name: string;
     email: string;
-    phone: string;
-    school: string;
-    grade: string;
-    nisn: string;
+    phone?: string;
+    school?: string;
+    grade?: string;
+    nisn?: string;
   };
   competition: {
     id: string;

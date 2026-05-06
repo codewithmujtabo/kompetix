@@ -96,16 +96,25 @@ EXPO_PUBLIC_API_URL=http://<MAC_LAN_IP>:3000/api
 
 ### Database
 - Schema is in `backend/src/db/schema.sql`.
-- Tables: `users`, `students`, `parents`, `teachers`, `competitions`, `competition_rounds`, `registrations`, `payments`, `documents`, `notifications`, `otp_codes`, `invitations`, `parent_student_links`, `bulk_registration_jobs`, `favorites`, `schools`.
+- Tables: `users`, `students`, `parents`, `teachers`, `competitions`, `competition_rounds`, `registrations`, `payments`, `documents`, `notifications`, `otp_codes`, `invitations`, `parent_student_links`, `teacher_student_links`, `bulk_registration_jobs`, `favorites`, `schools`, `historical_participants`, `school_payment_batches`, `school_payment_batch_items`.
 - Migrations live in `backend/migrations/` as timestamped `.sql` files. Run with `npm run db:migrate`.
 - `DATABASE_URL` format: `postgresql://user:password@localhost:5432/beyond_classroom` (DB name still `beyond_classroom` — rename to `kompetix` eventually).
+- **Latest migration:** `1746500000000_teacher-student-links.sql` — must be run on VPS.
+
+### Registration Flow (updated May 2026)
+1. Student registers → status = `pending_approval`
+2. Admin approves on web (`/registrations` page) → status = `registered` (paid comp) or `paid` (free comp)
+3. Student gets push notification to pay
+4. Student pays via Midtrans Snap → webhook fires → status = `paid` automatically
+5. No manual proof upload — Midtrans webhook is the only confirmation mechanism
 
 ### Payments
 - Midtrans Snap: `POST /api/payments/snap` creates a transaction and returns a `snap_token`.
-- Webhook at `POST /api/payments/webhook` — verifies Midtrans signature before processing.
-- Payment proof upload (manual, for bank transfer) via `POST /api/payments/:id/proof`.
+- Snap is blocked with 400 if registration is still `pending_approval` (not yet admin-approved).
+- Webhook at `POST /api/payments/webhook` — verifies Midtrans signature, marks `registrations.status = 'paid'` on settlement.
+- **Payment proof upload has been removed** — Midtrans auto-confirms.
+- VA expiry: webhook `expire` event resets registration back to `registered` (T10 fix).
 - Sandbox keys are in `.env`. Switch to production keys before launch.
-- **Known gap:** When VA expires, registration is left in limbo — needs fix (Sprint 3 Task 10).
 
 ### File Storage (Current — Needs Migration)
 - Files stored locally in `backend/uploads/<uuid>/`.
@@ -119,10 +128,18 @@ EXPO_PUBLIC_API_URL=http://<MAC_LAN_IP>:3000/api
 - **Known gaps (Sprint 0 Task 3):** bulk processor doesn't check competition fee, doesn't email temp password to new users, doesn't insert school_name for new students.
 
 ### Parent-Student Linking
-- Teacher/parent sends invite → `POST /api/parents/invite` → generates 6-digit PIN → emails student.
-- Student accepts → `POST /api/parents/accept-invitation` with PIN.
+- Student sends invite to parent email → `POST /api/parents/invite-parent` → generates 6-digit PIN → emails parent.
+- Parent accepts → `POST /api/parents/accept-invitation` with PIN.
 - Links stored in `parent_student_links` table.
 - Debug PIN endpoint (`GET /api/parents/debug-pin/:userId`) blocked in production.
+
+### Teacher-Student Roster (added May 2026)
+- Teacher explicitly links students they supervise — no automatic school-based scoping.
+- `POST /api/teachers/link-student` — teacher adds student by email (direct link, no PIN).
+- `DELETE /api/teachers/link-student/:studentId` — remove from roster.
+- Links stored in `teacher_student_links` table (migration `1746500000000_teacher-student-links.sql`).
+- **All teacher dashboard data is scoped to linked students only** — `GET /api/teachers/my-students`, `GET /api/teachers/my-competitions`, `GET /api/teachers/dashboard-summary`.
+- App: `teacher-students.tsx` → manage roster; `teacher-analytics.tsx` → competitions my students joined.
 
 ### Regions (Province/City)
 - App calls emsifa.com **directly** (not through backend) with in-memory cache.
@@ -136,10 +153,15 @@ EXPO_PUBLIC_API_URL=http://<MAC_LAN_IP>:3000/api
 
 ### Web Portal Structure
 - `web/app/(dashboard)/` — Admin portal (auth-guarded by `(dashboard)/layout.tsx`)
-- `web/app/(dashboard)/dashboard/page.tsx` — Dashboard home (NOT at `/`, avoids route conflict)
+- `web/app/(dashboard)/dashboard/page.tsx` — Dashboard home
+- `web/app/(dashboard)/registrations/page.tsx` — **Pending registration approvals** (approve/reject with reason)
+- `web/app/(dashboard)/competitions/page.tsx` — Competition management
+- `web/app/(dashboard)/users/page.tsx` — User management
+- `web/app/(dashboard)/schools/page.tsx` — Schools management
+- `web/app/(dashboard)/notifications/page.tsx` — Broadcast notifications
 - `web/app/page.tsx` — Root `/` redirects to `/dashboard`
 - `web/app/login/page.tsx` — Admin login
-- `web/lib/api/index.ts` — All API call functions
+- `web/lib/api/index.ts` — All API call functions (authApi, schoolsApi, competitionsApi, usersApi, registrationsApi, notificationsApi)
 - `web/lib/auth/context.tsx` — Auth context with localStorage JWT
 - `web/components/Sidebar.tsx` — Nav (uses `next/link` + `usePathname`, not React Router)
 - `web/next.config.mjs` — API proxy config (`.ts` version not supported in Next.js 14 — keep `.mjs`)
@@ -151,6 +173,7 @@ EXPO_PUBLIC_API_URL=http://<MAC_LAN_IP>:3000/api
 - Auto-link fires at login (`/me` and `/phone/verify-otp`) — matches email OR phone, skips if already linked.
 - Manual claim via `GET /api/historical/search` + `POST /api/historical/:id/claim`.
 - Mobile: `app/app/(tabs)/profile/history.tsx` — "My Records" tab + "Find & Claim" tab.
+- **Smart phone login (added May 2026):** If phone OTP succeeds but no `users` account, backend checks `historical_participants.phone`. If matched, returns `{ historicalMatch: true, fullName, email, phone }`. App routes to `app/(auth)/claim-account.tsx` which pre-fills name/email from historical data — user only needs to set a password. Account is created and historical records are auto-linked on signup.
 
 ### File Storage
 - **Dev (default):** local disk `backend/uploads/<userId>/`, served as static by Express.
@@ -160,16 +183,19 @@ EXPO_PUBLIC_API_URL=http://<MAC_LAN_IP>:3000/api
 
 ---
 
-## Current Task Status (as of May 4, 2026)
+## Current Task Status (as of May 5, 2026)
 
-**Sprints 0–7 fully complete (T1–T25). All backend tasks done.**
+**Sprints 0–8 fully complete (T1–T25 + session extras). All backend tasks done.**
 
 ### NEXT STEP TO START:
-**Sprint 7 complete (T23–T25 done).** All planned backend tasks finished.
-Next work is integration + QA with teammate's web portals (weeks 7–8).
+Integration + QA with teammate's web portals (weeks 7–8).
+The new `/registrations` page in `web/` is ready for the teammate to use — they need to log in as admin and approve/reject registrations that students submit from the app.
 
 **Also pending (VPS, do manually):**
 - **T21** — MinIO Docker on VPS: `docker run -d -p 9000:9000 -p 9001:9001 -e MINIO_ROOT_USER=... -e MINIO_ROOT_PASSWORD=... quay.io/minio/minio server /data --console-address :9001`, then set the 5 `MINIO_*` env vars in `backend/.env`.
+- **Run migration on VPS:** `npm run db:migrate` to apply `1746500000000_teacher-student-links.sql`.
+- **api.co.id key:** Register at api.co.id to get `API_CO_ID_KEY` for real school search in signup.
+- **Expo project ID:** Run `npx eas init` inside `app/` for production push notifications.
 
 ---
 
@@ -231,6 +257,14 @@ Next work is integration + QA with teammate's web portals (weeks 7–8).
 | T23 | ✅ | school_payment_batches table + bulk pay endpoint | `1746300000000_school-payment-batches.sql` + `payments.routes.ts` |
 | T24 | ✅ | Add referral_code column to registrations | `1746400000000_add-referral-code.sql` + `registrations.routes.ts` |
 | T25 | ✅ | Admin refund endpoint | `midtrans.service.ts` + `admin.routes.ts` |
+
+### SPRINT 8 — UX Fixes & Data Scoping (May 5, 2026) ✅ COMPLETE
+| Task | What | Key files |
+|---|---|---|
+| T26 | **Historical phone login** — phone OTP matched to `historical_participants` returns `{ historicalMatch }` instead of NO_ACCOUNT; app routes to new `claim-account.tsx` screen pre-filled with name/email | `auth.routes.ts`, `app/(auth)/claim-account.tsx`, `app/(auth)/login.tsx`, `auth.service.ts` |
+| T27 | **Remove payment proof upload** — Midtrans webhook auto-confirms; webhook now marks `registrations.status = 'paid'` on settlement; removed upload-proof + manual-intent + GET-proof endpoints | `payments.routes.ts`, `app/(payment)/pay.tsx`, `my-competitions.tsx` |
+| T28 | **Admin registration approval flow** — all new registrations start as `pending_approval`; admin approves on web → `registered` (paid comp) or `paid` (free); student notified | `registrations.routes.ts`, `admin.routes.ts`, `web/app/(dashboard)/registrations/page.tsx`, `web/components/Sidebar.tsx`, `web/lib/api/index.ts`, `web/types/index.ts`, `my-competitions.tsx`, `AuthContext.tsx` |
+| T29 | **Teacher roster scoping** — new `teacher_student_links` table; teacher adds students by email; all teacher queries (students, analytics, dashboard) now scoped to linked students only; `teacher-analytics.tsx` repurposed as "My Competitions" showing which students are registered for each competition | `1746500000000_teacher-student-links.sql`, `teachers.routes.ts`, `teachers.service.ts`, `teacher-dashboard.tsx`, `teacher-students.tsx`, `teacher-analytics.tsx`, `teacher-actions.tsx` |
 
 ### Dependency Map
 ```
