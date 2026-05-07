@@ -122,7 +122,7 @@ export default function DiscoverScreen() {
   } = useQuery({
     queryKey: ["competitions"],
     queryFn: () => competitionsService.list(),
-    staleTime: 24 * 60 * 60 * 1000,
+    staleTime: 0, // always refetch in background when screen mounts
   });
 
   const {
@@ -144,8 +144,8 @@ export default function DiscoverScreen() {
   } = useQuery({
     queryKey: ["recommendations"],
     queryFn: () => competitionsService.getRecommended(10),
-    staleTime: 60 * 60 * 1000, // 1 hour
-    enabled: !isParent && registrations.length > 0, // Only fetch if user has registrations
+    staleTime: 0,
+    enabled: !isParent && registrations.length > 0,
   });
 
   // Load favorited competitions

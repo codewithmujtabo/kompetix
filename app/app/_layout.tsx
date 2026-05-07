@@ -18,8 +18,7 @@ Sentry.init({
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // 24h stale time — competitions list is readable offline (PRD §6)
-      staleTime: 1000 * 60 * 60 * 24,
+      staleTime: 5 * 60 * 1000, // 5 min default
       retry: 2,
     },
   },

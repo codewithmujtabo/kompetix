@@ -58,6 +58,7 @@ export default function CompetitionDetailPage() {
   const { data: comp, isLoading, isError } = useQuery({
     queryKey: ["competition", id],
     queryFn: () => competitionsService.get(id!),
+    staleTime: 0,
     enabled: !!id,
   });
 
