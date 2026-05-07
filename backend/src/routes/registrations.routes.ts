@@ -193,7 +193,7 @@ router.post("/", async (req: Request, res: Response) => {
     // T6: Capture profile snapshot at registration time
     const profileResult = await pool.query(
       `SELECT u.full_name, u.email, u.phone, u.city, u.province, u.role,
-              s.school, s.grade, s.nisn,
+              s.school_name AS school, s.grade, s.nisn,
               p.child_name, p.child_school, p.child_grade
        FROM users u
        LEFT JOIN students s ON s.id = u.id
