@@ -348,7 +348,7 @@ router.get("/registrations", authMiddleware, schoolAdminOnly, async (req: Reques
       SELECT
         r.id as registration_id,
         r.status,
-        r.registered_at,
+        r.created_at as registered_at,
         u.id as student_id,
         u.full_name as student_name,
         u.email as student_email,
@@ -357,8 +357,8 @@ router.get("/registrations", authMiddleware, schoolAdminOnly, async (req: Reques
         c.name as competition_name,
         c.category,
         c.fee as competition_fee,
-        c.level,
-        c.start_date,
+        c.grade_level as level,
+        c.competition_date as start_date,
         c.reg_close_date
       FROM registrations r
       JOIN users u ON r.user_id = u.id
@@ -382,7 +382,7 @@ router.get("/registrations", authMiddleware, schoolAdminOnly, async (req: Reques
       paramIndex++;
     }
 
-    query += ` ORDER BY r.registered_at DESC`;
+    query += ` ORDER BY r.created_at DESC`;
 
     // Add pagination
     const pageNum = parseInt(page as string);
@@ -547,7 +547,7 @@ router.get("/export/registrations/pdf", authMiddleware, schoolAdminOnly, async (
       `SELECT
         c.name as competition_name,
         c.category,
-        c.level,
+        c.grade_level as level,
         COUNT(*) as registration_count,
         COUNT(*) FILTER (WHERE r.status = 'paid') as paid_count,
         COUNT(*) FILTER (WHERE r.status = 'registered') as registered_count
@@ -555,7 +555,7 @@ router.get("/export/registrations/pdf", authMiddleware, schoolAdminOnly, async (
       JOIN users u ON r.user_id = u.id
       JOIN competitions c ON r.comp_id = c.id
       WHERE u.school_id = $1
-      GROUP BY c.id, c.name, c.category, c.level
+      GROUP BY c.id, c.name, c.category, c.grade_level
       ORDER BY registration_count DESC
       LIMIT 50`,
       [schoolId]
