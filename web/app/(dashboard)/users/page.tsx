@@ -71,7 +71,7 @@ export default function Users() {
                         <td style={{ fontFamily: 'var(--ff-mono)', fontSize: 12 }}>{u.email}</td>
                         <td><span className={`badge ${ROLE_CLS[u.role] ?? 'badge-gray'}`}>{u.role}</span></td>
                         <td>{u.city || '—'}</td>
-                        <td style={{ fontFamily: 'var(--ff-mono)', fontSize: 11 }}>{new Date(u.created_at).toLocaleDateString()}</td>
+                        <td style={{ fontFamily: 'var(--ff-mono)', fontSize: 11 }}>{u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</td>
                       </tr>
                     ))}
                   </tbody>

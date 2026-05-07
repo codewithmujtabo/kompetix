@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { SchoolProvider, useSchool } from '@/lib/auth/school-context';
+import ThemeToggle from '@/components/ThemeToggle';
 
 // Навигация для администратора школы
 const ADMIN_NAV = [
@@ -113,6 +114,7 @@ function SchoolLayoutInner({ children }: { children: React.ReactNode }) {
           <div style={{ fontSize: 10, color: roleColor, marginBottom: 10, textTransform: 'uppercase' }}>
             {isAdmin ? 'Administrator' : 'Teacher'}
           </div>
+          <ThemeToggle />
           <button className="btn btn-ghost" onClick={handleLogout} style={{ width: '100%', justifyContent: 'center', fontSize: 12, padding: '6px' }}>
             Sign out
           </button>

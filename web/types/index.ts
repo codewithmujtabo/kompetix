@@ -54,6 +54,8 @@ export interface School {
   phone?: string;
   email?: string;
   status?: string;
+  npsn?: string;
+  created_at?: string;
 }
 
 export interface User {
@@ -63,15 +65,25 @@ export interface User {
   role: string;
   is_active: boolean;
   school_id?: string;
+  city?: string;
+  created_at?: string;
 }
 
 export interface PendingRegistration {
-  id: string;
-  competition_id: string;
-  competition_name: string;
-  participant_name: string;
-  participant_email: string;
-  school_name: string;
+  registrationId: string;
   status: string;
-  registered_at: string;
+  registeredAt: string;
+  student: {
+    name: string;
+    email: string;
+    phone?: string;
+    school?: string;
+    grade?: string;
+    nisn?: string;
+  };
+  competition: {
+    id: string;
+    name: string;
+    fee: number;
+  };
 }

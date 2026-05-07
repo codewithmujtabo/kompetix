@@ -109,7 +109,7 @@ export default function Schools() {
                         <td style={{ color: 'var(--text-1)', fontWeight: 500 }}>{s.name}</td>
                         <td>{s.city || '—'}</td>
                         <td>{s.province || '—'}</td>
-                        <td style={{ fontFamily: 'var(--ff-mono)', fontSize: 11 }}>{new Date(s.created_at).toLocaleDateString()}</td>
+                        <td style={{ fontFamily: 'var(--ff-mono)', fontSize: 11 }}>{s.created_at ? new Date(s.created_at).toLocaleDateString() : '—'}</td>
                       </tr>
                     ))}
                   </tbody>

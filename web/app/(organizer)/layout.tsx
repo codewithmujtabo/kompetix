@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { OrganizerProvider, useOrganizer } from '@/lib/auth/organizer-context';
+import ThemeToggle from '@/components/ThemeToggle';
 
 const NAV = [
   { href: '/organizer-dashboard',     label: 'Dashboard',     icon: '▦' },
@@ -82,6 +83,7 @@ function OrganizerLayoutInner({ children }: { children: React.ReactNode }) {
         <div style={{ padding: '14px 18px', borderTop: '1px solid var(--border)' }}>
           <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 2 }}>{user.full_name}</div>
           <div style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--ff-mono)', marginBottom: 10 }}>{user.email}</div>
+          <ThemeToggle />
           <button className="btn btn-ghost" onClick={handleLogout} style={{ width: '100%', justifyContent: 'center', fontSize: 12, padding: '6px' }}>
             Sign out
           </button>
