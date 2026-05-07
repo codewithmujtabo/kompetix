@@ -19,12 +19,15 @@ const TABS = ["Saved", "Applications", "Joined"] as const;
 type TabType = (typeof TABS)[number];
 
 const STATUS_CFG: Record<string, { label: string; bg: string; color: string }> = {
-  pending_approval: { label: "Awaiting Approval", bg: "#FEF3C7", color: "#92400E" },
-  registered: { label: "Payment Needed", bg: "#DBEAFE", color: "#1D4ED8" },
-  rejected: { label: "Rejected", bg: "#FEE2E2", color: "#B91C1C" },
-  paid: { label: "Joined", bg: "#D1FAE5", color: "#065F46" },
-  approved: { label: "Joined", bg: "#D1FAE5", color: "#065F46" },
-  completed: { label: "Completed", bg: "#E0E7FF", color: "#4338CA" },
+  pending_payment: { label: "Payment Required", bg: "#DBEAFE", color: "#1D4ED8" },
+  pending_review:  { label: "Under Review",     bg: "#FEF3C7", color: "#92400E" },
+  approved:        { label: "Approved",         bg: "#D1FAE5", color: "#065F46" },
+  rejected:        { label: "Rejected",         bg: "#FEE2E2", color: "#B91C1C" },
+  paid:            { label: "Approved",         bg: "#D1FAE5", color: "#065F46" },
+  completed:       { label: "Completed",        bg: "#E0E7FF", color: "#4338CA" },
+  // legacy statuses
+  pending_approval: { label: "Under Review",   bg: "#FEF3C7", color: "#92400E" },
+  registered:       { label: "Payment Required", bg: "#DBEAFE", color: "#1D4ED8" },
 };
 
 function formatCurrency(amount: number) {
@@ -125,7 +128,8 @@ export default function MyCompetitionsScreen() {
   const applications = useMemo(
     () =>
       registrations.filter((registration) =>
-        ["pending_approval", "registered", "rejected"].includes(registration.status)
+        ["pending_payment", "pending_review", "rejected",
+         "pending_approval", "registered"].includes(registration.status)
       ),
     [registrations]
   );
@@ -173,11 +177,18 @@ export default function MyCompetitionsScreen() {
       await favoritesService.remove(favorite.id).catch(() => undefined);
       setFavorites((current) => current.filter((item) => item.id !== favorite.id));
 
-      setActiveTab("Applications");
-      Alert.alert(
-        "Registration Submitted",
-        "Your registration is pending admin approval. You'll be notified once it's reviewed."
-      );
+      if (favorite.fee > 0 && registration.status === "pending_payment") {
+        router.push({
+          pathname: "/(payment)/pay",
+          params: { registrationId: registration.id },
+        });
+      } else {
+        setActiveTab("Applications");
+        Alert.alert(
+          "Registration Submitted",
+          "Your application is under admin review. You'll be notified once it's approved."
+        );
+      }
     } catch (err: any) {
       Alert.alert("Application Failed", err.message || "Unable to apply for this competition.");
     } finally {
@@ -251,14 +262,14 @@ export default function MyCompetitionsScreen() {
                 <Text style={styles.regNumberText}>{item.registrationNumber}</Text>
               </View>
             ) : null}
-            {item.status === "pending_approval" ? (
+            {(item.status === "pending_payment" || item.status === "registered") ? (
               <Text style={styles.helperText}>
-                Waiting for admin approval. You will be notified once reviewed.
+                Complete your payment to submit your application.
               </Text>
             ) : null}
-            {item.status === "registered" ? (
+            {(item.status === "pending_review" || item.status === "pending_approval") ? (
               <Text style={styles.helperText}>
-                Approved! Complete your payment to secure your spot.
+                Your application is under admin review. You'll be notified once approved.
               </Text>
             ) : null}
             {item.status === "rejected" ? (
@@ -270,7 +281,7 @@ export default function MyCompetitionsScreen() {
         </View>
 
         <View style={styles.actionRow}>
-          {item.fee > 0 && item.status === "registered" ? (
+          {item.fee > 0 && (item.status === "pending_payment" || item.status === "registered") ? (
             <Pressable
               style={styles.primaryButtonInline}
               onPress={() =>

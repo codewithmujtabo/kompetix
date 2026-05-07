@@ -186,9 +186,10 @@ router.post("/", async (req: Request, res: Response) => {
       return;
     }
 
-    // All registrations start as pending_approval — admin reviews before payment
     const isFree = compResult.rows[0].fee === 0;
-    const initialStatus = "pending_approval";
+    // Free: skip payment, go straight to admin review
+    // Paid: student pays first, then admin reviews
+    const initialStatus = isFree ? "pending_review" : "pending_payment";
 
     // T6: Capture profile snapshot at registration time
     const profileResult = await pool.query(
@@ -239,10 +240,14 @@ router.post("/", async (req: Request, res: Response) => {
     const studentName = detailsResult.rows[0]?.student_name || "Your child";
 
     // Create notification for registration
+    const notifBody = isFree
+      ? `Your registration for ${competitionName} is under admin review. You'll be notified once it's approved.`
+      : `You're registered for ${competitionName}! Complete your payment to submit your application.`;
+
     await pushService.sendPushNotification(
       req.userId!,
       "Registration Submitted!",
-      `Your registration for ${competitionName} is pending admin approval. You'll be notified once it's reviewed.`,
+      notifBody,
       {
         type: "registration_created",
         compId,
@@ -254,8 +259,10 @@ router.post("/", async (req: Request, res: Response) => {
     if (parentIds.length > 0) {
       await pushService.sendBatchNotifications(
         parentIds,
-        "Child Registration Pending",
-        `${studentName} submitted a registration for ${competitionName}. Waiting for admin approval.`,
+        "Child Registration Submitted",
+        isFree
+          ? `${studentName} registered for ${competitionName}. Waiting for admin approval.`
+          : `${studentName} registered for ${competitionName}. Payment required to complete registration.`,
         {
           type: "child_registration_created",
           compId,

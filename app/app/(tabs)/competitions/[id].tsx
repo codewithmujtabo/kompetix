@@ -359,15 +359,23 @@ export default function CompetitionDetailPage() {
             styles.registerBtn,
             isClosed && !already && styles.registerBtnDisabled,
           ]}
-          onPress={() => {
+          onPress={async () => {
             if (!already && !isClosed) {
               Analytics.track("registration_started", {
                 competitionId: comp.id,
                 name: comp.name,
                 fee: comp.fee,
               });
-              registerCompetition(comp.id, { competitionName: comp.name, fee: comp.fee, category: comp.category });
-              router.push("/(tabs)/my-competitions");
+              const reg = await registerCompetition(comp.id, { competitionName: comp.name, fee: comp.fee, category: comp.category });
+              if (comp.fee > 0 && reg.status === "pending_payment") {
+                router.push({ pathname: "/(payment)/pay", params: { registrationId: reg.id } });
+              } else {
+                router.push("/(tabs)/my-competitions");
+              }
+              return;
+            }
+            if (existingRegistration && (existingRegistration.status === "pending_payment" || existingRegistration.status === "registered")) {
+              router.push({ pathname: "/(payment)/pay", params: { registrationId: existingRegistration.id } });
               return;
             }
             if (existingRegistration && ["approved", "paid", "completed"].includes(existingRegistration.status)) {
@@ -385,7 +393,9 @@ export default function CompetitionDetailPage() {
             {isClosed
               ? "Registration Closed"
               : already
-              ? existingRegistration && ["approved", "paid", "completed"].includes(existingRegistration.status)
+              ? existingRegistration && (existingRegistration.status === "pending_payment" || existingRegistration.status === "registered")
+                ? "Complete Payment"
+                : existingRegistration && ["approved", "paid", "completed"].includes(existingRegistration.status)
                 ? "Open Competition Hub"
                 : "View Application"
               : "Register Now"}

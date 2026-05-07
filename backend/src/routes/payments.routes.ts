@@ -103,19 +103,19 @@ router.post("/webhook", async (req: Request, res: Response) => {
       [newPaymentStatus, transaction_id ?? null, payment_type ?? null, paymentDbId]
     );
 
-    // T10: VA/payment expired — reset registration so student can initiate a new payment
+    // T10: VA/payment expired — reset so student can try paying again
     if (transaction_status === "expire") {
       await pool.query(
-        `UPDATE registrations SET status = 'registered', updated_at = now() WHERE id = $1`,
+        `UPDATE registrations SET status = 'pending_payment', updated_at = now() WHERE id = $1`,
         [registration_id]
       );
-      console.log(`Payment expired: order=${order_id} — registration ${registration_id} reset to 'registered'`);
+      console.log(`Payment expired: order=${order_id} — registration ${registration_id} reset to 'pending_payment'`);
     }
 
-    // ── Mark registration as paid and notify student ───────────────────────
+    // ── Payment settled — move to pending_review (awaiting admin approval) ──
     if (isSuccess) {
       await pool.query(
-        `UPDATE registrations SET status = 'paid', updated_at = now() WHERE id = $1`,
+        `UPDATE registrations SET status = 'pending_review', updated_at = now() WHERE id = $1`,
         [registration_id]
       );
 
@@ -133,7 +133,7 @@ router.post("/webhook", async (req: Request, res: Response) => {
         await pushService.sendPushNotification(
           user_id,
           "Payment Confirmed!",
-          `Your payment for ${comp_name} has been confirmed. Your spot is secured!`,
+          `Payment for ${comp_name} received! Your application is now under admin review.`,
           {
             type: "payment_success",
             compId: comp_id,
@@ -200,13 +200,8 @@ router.post("/snap", async (req: Request, res: Response) => {
       return;
     }
 
-    if (["approved", "completed", "paid"].includes(row.reg_status)) {
-      res.status(400).json({ message: "This registration has already been finalized" });
-      return;
-    }
-
-    if (row.reg_status === "pending_approval") {
-      res.status(400).json({ message: "Your registration is awaiting admin approval. Payment will be available once approved." });
+    if (["pending_review", "approved", "completed", "paid"].includes(row.reg_status)) {
+      res.status(400).json({ message: "This registration has already been paid or finalized" });
       return;
     }
 
@@ -297,9 +292,9 @@ router.get("/verify/:registrationId", async (req: Request, res: Response) => {
 
     const { order_id, reg_status } = payRow.rows[0];
 
-    // If already paid in DB, nothing to do
-    if (reg_status === "paid") {
-      res.json({ status: "paid" });
+    // If already in post-payment state, nothing to do
+    if (["pending_review", "approved", "paid"].includes(reg_status)) {
+      res.json({ status: reg_status });
       return;
     }
 
@@ -325,11 +320,11 @@ router.get("/verify/:registrationId", async (req: Request, res: Response) => {
         [order_id]
       );
       await pool.query(
-        `UPDATE registrations SET status = 'paid', updated_at = now() WHERE id = $1`,
+        `UPDATE registrations SET status = 'pending_review', updated_at = now() WHERE id = $1`,
         [registrationId]
       );
-      console.log(`Verify endpoint: forced paid for registration ${registrationId} (order ${order_id})`);
-      res.json({ status: "paid" });
+      console.log(`Verify endpoint: payment settled for registration ${registrationId} (order ${order_id}) → pending_review`);
+      res.json({ status: "pending_review" });
       return;
     }
 

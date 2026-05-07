@@ -525,11 +525,11 @@ router.get("/stats", async (req, res) => {
 
 /**
  * GET /api/admin/registrations/pending
- * Get registrations filtered by status (default: pending_approval, use ?status=all for all)
+ * Get registrations filtered by status (default: pending_review, use ?status=all for all)
  */
 router.get("/registrations/pending", async (req, res) => {
   try {
-    const statusFilter = (req.query.status as string) || "pending_approval";
+    const statusFilter = (req.query.status as string) || "pending_review";
     const whereClause = statusFilter === "all"
       ? ""
       : `WHERE r.status = '${statusFilter}'`;
@@ -650,9 +650,8 @@ router.post("/registrations/:id/approve", async (req, res) => {
       return;
     }
 
-    const { user_id, competition_name, fee } = regResult.rows[0];
-    // Free → confirmed immediately; paid → student must complete payment
-    const newStatus = fee === 0 ? "paid" : "registered";
+    const { user_id, competition_name } = regResult.rows[0];
+    const newStatus = "approved";
 
     // Update registration status
     await pool.query(
@@ -665,9 +664,7 @@ router.post("/registrations/:id/approve", async (req, res) => {
       [newStatus, adminId, id]
     );
 
-    const notifBody = fee === 0
-      ? `Congratulations! Your registration for ${competition_name} has been approved. You're all set!`
-      : `Your registration for ${competition_name} has been approved. Please complete the payment to secure your spot.`;
+    const notifBody = `Congratulations! Your registration for ${competition_name} has been approved.`;
 
     // Send approval notification to student
     await pool.query(
@@ -698,7 +695,7 @@ router.post("/registrations/:id/approve", async (req, res) => {
       await pushService.sendBatchNotifications(
         parentIds,
         "Child Registration Approved",
-        `${studentName}'s registration for ${competition_name} has been approved.${fee > 0 ? " Payment required." : ""}`,
+        `${studentName}'s registration for ${competition_name} has been approved.`,
         {
           type: "child_registration_approved",
           registrationId: id,

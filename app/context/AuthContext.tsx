@@ -20,14 +20,15 @@ import React, {
 export type { AppUser };
 
 export type RegistrationStatus =
-  | "pending_approval"
-  | "registered"
+  | "pending_payment"
   | "pending_review"
   | "approved"
   | "rejected"
   | "paid"
   | "submitted"
-  | "completed";
+  | "completed"
+  | "pending_approval"  // legacy
+  | "registered";       // legacy
 
 export interface Registration {
   id: string;
@@ -224,12 +225,13 @@ export function AuthProvider({
     meta: Record<string, any> = {}
   ): Promise<Registration> {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const optimisticStatus: RegistrationStatus = (meta.fee ?? 0) > 0 ? "pending_payment" : "pending_review";
     const reg: Registration = {
       id,
       compId,
       competitionName: meta.competitionName ?? "Unknown",
       fee: meta.fee ?? 0,
-      status: "registered",
+      status: optimisticStatus,
       createdAt: new Date().toISOString(),
       meta,
     };
@@ -242,7 +244,7 @@ export function AuthProvider({
         compId,
         meta,
       });
-      // Server may upgrade status to "paid" for free competitions
+      // Use server status as source of truth
       const finalRegistration = {
         ...reg,
         id: serverId || id,

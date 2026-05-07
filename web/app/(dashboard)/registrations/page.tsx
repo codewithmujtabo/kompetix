@@ -6,19 +6,21 @@ import type { PendingRegistration } from '@/types';
 import { PageHeader, Spinner, Toast } from '@/components/ui';
 
 const STATUSES = [
-  { key: 'all',              label: 'All' },
-  { key: 'pending_approval', label: 'Pending' },
-  { key: 'registered',       label: 'Registered' },
-  { key: 'paid',             label: 'Paid' },
-  { key: 'rejected',         label: 'Rejected' },
+  { key: 'all',             label: 'All' },
+  { key: 'pending_review',  label: 'Pending Review' },
+  { key: 'approved',        label: 'Approved' },
+  { key: 'rejected',        label: 'Rejected' },
 ];
 
 const STATUS_CLS: Record<string, string> = {
+  pending_payment:  'badge-indigo',
+  pending_review:   'badge-yellow',
+  approved:         'badge-green',
+  rejected:         'badge-red',
+  paid:             'badge-green',
+  // legacy
   pending_approval: 'badge-yellow',
   registered:       'badge-indigo',
-  paid:             'badge-green',
-  rejected:         'badge-red',
-  approved:         'badge-green',
 };
 
 function formatFee(fee: number) {
@@ -185,7 +187,7 @@ export default function RegistrationsPage() {
                       {new Date(r.registeredAt).toLocaleDateString('id-ID')}
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      {r.status === 'pending_approval' ? (
+                      {r.status === 'pending_review' ? (
                         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                           <button
                             className="btn btn-primary"
