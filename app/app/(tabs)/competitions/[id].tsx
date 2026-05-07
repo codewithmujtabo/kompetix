@@ -44,6 +44,17 @@ const CATEGORY_EMOJIS: Record<string, string> = {
   Sports: "⚽",
 };
 
+const STATUS_PILL_CFG: Record<string, { label: string; style: object; textStyle: object }> = {
+  pending_payment: { label: "Pay Now",      style: { backgroundColor: "#DBEAFE" }, textStyle: { color: "#1D4ED8" } },
+  registered:      { label: "Pay Now",      style: { backgroundColor: "#DBEAFE" }, textStyle: { color: "#1D4ED8" } },
+  pending_review:  { label: "Under Review", style: { backgroundColor: "#FEF3C7" }, textStyle: { color: "#92400E" } },
+  pending_approval:{ label: "Under Review", style: { backgroundColor: "#FEF3C7" }, textStyle: { color: "#92400E" } },
+  approved:        { label: "Approved",     style: { backgroundColor: "#D1FAE5" }, textStyle: { color: "#065F46" } },
+  paid:            { label: "Approved",     style: { backgroundColor: "#D1FAE5" }, textStyle: { color: "#065F46" } },
+  rejected:        { label: "Rejected",     style: { backgroundColor: "#FEE2E2" }, textStyle: { color: "#B91C1C" } },
+  completed:       { label: "Completed",    style: { backgroundColor: "#E0E7FF" }, textStyle: { color: "#4338CA" } },
+};
+
 export default function CompetitionDetailPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -194,7 +205,13 @@ export default function CompetitionDetailPage() {
         <Text style={styles.headerTitle} numberOfLines={1}>
           {comp.name}
         </Text>
-        {isParent ? <View style={{ width: 24 }} /> : (
+        {isParent ? <View style={{ width: 40 }} /> : existingRegistration ? (
+          <View style={[styles.statusPill, STATUS_PILL_CFG[existingRegistration.status]?.style]}>
+            <Text style={[styles.statusPillText, STATUS_PILL_CFG[existingRegistration.status]?.textStyle]}>
+              {STATUS_PILL_CFG[existingRegistration.status]?.label ?? existingRegistration.status}
+            </Text>
+          </View>
+        ) : (
           <Pressable
             onPress={handleToggleFavorite}
             style={styles.favoriteBtn}
@@ -397,7 +414,7 @@ export default function CompetitionDetailPage() {
               ? existingRegistration && (existingRegistration.status === "pending_payment" || existingRegistration.status === "registered")
                 ? "Complete Payment"
                 : existingRegistration && ["approved", "paid", "completed"].includes(existingRegistration.status)
-                ? "Open Competition Hub"
+                ? "Open Details"
                 : "View Application"
               : "Register Now"}
           </Text>
@@ -435,6 +452,17 @@ const styles = StyleSheet.create({
   },
   favoriteIcon: {
     fontSize: 24,
+  },
+  statusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statusPillText: {
+    fontSize: 11,
+    fontWeight: "700",
   },
   infoCard: {
     backgroundColor: "#fff",

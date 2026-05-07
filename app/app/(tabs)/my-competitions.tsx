@@ -208,7 +208,9 @@ export default function MyCompetitionsScreen() {
             <Text style={styles.iconEmoji}>{emoji}</Text>
           </View>
           <View style={styles.cardMain}>
-            <Text style={styles.cardTitle}>{item.name}</Text>
+            <Pressable onPress={() => router.push({ pathname: "/(tabs)/competitions/[id]", params: { id: item.id } })}>
+              <Text style={[styles.cardTitle, { textDecorationLine: "underline" }]}>{item.name}</Text>
+            </Pressable>
             <Text style={styles.cardMeta}>
               {item.organizer_name} • {item.category}
             </Text>
@@ -254,7 +256,9 @@ export default function MyCompetitionsScreen() {
             <Text style={styles.iconEmoji}>{emoji}</Text>
           </View>
           <View style={styles.cardMain}>
-            <Text style={styles.cardTitle}>{item.competitionName}</Text>
+            <Pressable onPress={() => router.push({ pathname: "/(tabs)/competitions/[id]", params: { id: item.compId } })}>
+              <Text style={[styles.cardTitle, { textDecorationLine: "underline" }]}>{item.competitionName}</Text>
+            </Pressable>
             <Text style={styles.cardMeta}>{formatCurrency(item.fee)}</Text>
             <StatusBadge status={item.status} />
             {item.registrationNumber ? (
@@ -324,7 +328,9 @@ export default function MyCompetitionsScreen() {
             <Text style={styles.iconEmoji}>{emoji}</Text>
           </View>
           <View style={styles.cardMain}>
-            <Text style={styles.cardTitle}>{item.competitionName}</Text>
+            <Pressable onPress={() => router.push({ pathname: "/(tabs)/competitions/[id]", params: { id: item.compId } })}>
+              <Text style={[styles.cardTitle, { textDecorationLine: "underline" }]}>{item.competitionName}</Text>
+            </Pressable>
             <Text style={styles.cardMeta}>{formatCurrency(item.fee)}</Text>
             <StatusBadge status={item.status} />
             {item.registrationNumber ? (
@@ -333,7 +339,7 @@ export default function MyCompetitionsScreen() {
               </View>
             ) : null}
             <Text style={styles.helperText}>
-              Open the competition hub to view schedule, platform, venue, and participant instructions.
+              View competition details, schedule, platform, venue, and participant instructions.
             </Text>
           </View>
         </View>
@@ -347,7 +353,7 @@ export default function MyCompetitionsScreen() {
             })
           }
         >
-          <Text style={styles.primaryButtonText}>Open Competition Hub</Text>
+          <Text style={styles.primaryButtonText}>Details</Text>
         </Pressable>
       </View>
     );
@@ -410,7 +416,7 @@ export default function MyCompetitionsScreen() {
               ? "Save competitions from the detail page, then apply when you are ready."
               : activeTab === "Applications"
               ? "Applications appear here after you apply and before admin approves them."
-              : "Once your application is approved, the competition hub will appear here."
+              : "Once your application is approved, the details will appear here."
           }
           actionLabel={activeTab === "Saved" ? "Browse Competitions" : undefined}
           onAction={activeTab === "Saved" ? () => router.push("/(tabs)/competitions") : undefined}
