@@ -356,6 +356,7 @@ router.get("/registrations", authMiddleware, schoolAdminOnly, async (req: Reques
         c.id as competition_id,
         c.name as competition_name,
         c.category,
+        c.fee as competition_fee,
         c.level,
         c.start_date,
         c.reg_close_date
@@ -433,6 +434,7 @@ router.get("/registrations", authMiddleware, schoolAdminOnly, async (req: Reques
           id: row.competition_id,
           name: row.competition_name,
           category: row.category,
+          fee: Number(row.competition_fee ?? 0),
           level: row.level,
           startDate: row.start_date,
           regCloseDate: row.reg_close_date

@@ -20,7 +20,7 @@ const TEACHER_NAV = [
   { href: '/school-my-students',    label: 'My Students',     icon: '👨‍🎓' },
   { href: '/school-my-competitions', label: 'My Competitions', icon: '🏆' },
   { href: '/school-registrations',  label: 'Registrations',   icon: '📊' },
-  { href: '/school-deadlines',      label: 'Deadlines',       icon: '⏰' },
+  { href: '/school-deadline',        label: 'Deadlines',       icon: '⏰' },
 ];
 
 export default function SchoolLayout({ children }: { children: React.ReactNode }) {

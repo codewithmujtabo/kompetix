@@ -1,8 +1,21 @@
 import { Router, Request, Response } from "express";
+import multer from "multer";
 import { pool } from "../config/database";
 import { authMiddleware } from "../middleware/auth";
 import { organizerOnly } from "../middleware/organizer.middleware";
 import * as pushService from "../services/push.service";
+import { storeFile } from "../services/storage.service";
+
+const csvUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB
+  fileFilter: (_req, file, cb) => {
+    const ok = file.mimetype === "text/csv" ||
+               file.mimetype === "application/vnd.ms-excel" ||
+               file.originalname.endsWith(".csv");
+    cb(null, ok);
+  },
+});
 
 const router = Router();
 router.use(authMiddleware);
@@ -339,6 +352,7 @@ router.get("/competitions/:id", async (req: Request, res: Response) => {
       participantInstructions: c.participant_instructions,
       requiredDocs: c.required_docs,
       registrationCount: c.registration_count,
+      csvTemplateUrl: c.csv_template_url ?? null,
       createdAt: c.created_at,
     });
   } catch (err) {
@@ -700,5 +714,41 @@ router.get("/revenue", async (req: Request, res: Response) => {
     res.status(500).json({ message: "Failed to fetch revenue" });
   }
 });
+
+// ── POST /api/organizers/competitions/:id/csv-template ────────────────────
+router.post(
+  "/competitions/:id/csv-template",
+  csvUpload.single("file"),
+  async (req: Request, res: Response) => {
+    try {
+      if (!await ownsCompetition(req.params.id as string, req.userId!, (req as any).userRole)) {
+        res.status(403).json({ message: "You do not own this competition" });
+        return;
+      }
+
+      if (!req.file) {
+        res.status(400).json({ message: "CSV file is required" });
+        return;
+      }
+
+      const url = await storeFile(
+        req.userId!,
+        req.file.buffer,
+        req.file.originalname,
+        req.file.mimetype || "text/csv"
+      );
+
+      await pool.query(
+        "UPDATE competitions SET csv_template_url = $1 WHERE id = $2",
+        [url, req.params.id]
+      );
+
+      res.json({ csvTemplateUrl: url });
+    } catch (err) {
+      console.error("POST /organizers/competitions/:id/csv-template error:", err);
+      res.status(500).json({ message: "Failed to upload CSV template" });
+    }
+  }
+);
 
 export default router;

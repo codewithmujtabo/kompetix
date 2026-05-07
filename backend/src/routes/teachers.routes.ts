@@ -152,7 +152,7 @@ router.get("/my-competitions", async (req: Request, res: Response) => {
       fee: number;
       regCloseDate: string | null;
       competitionDate: string | null;
-      students: { id: string; fullName: string; grade: string; status: string; registrationNumber: string | null }[];
+      students: { id: string; fullName: string; grade: string; status: string; registrationNumber: string | null; registrationId: string }[];
     }>();
 
     for (const row of result.rows) {
@@ -173,6 +173,7 @@ router.get("/my-competitions", async (req: Request, res: Response) => {
         grade: row.grade,
         status: row.reg_status,
         registrationNumber: row.registration_number,
+        registrationId: row.reg_id,
       });
     }
 

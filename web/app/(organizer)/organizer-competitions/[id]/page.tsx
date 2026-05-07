@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { organizerCompetitionsApi } from '@/lib/api';
+import { organizerHttp } from '@/lib/api/client';
 
 interface Competition {
   id: string;
@@ -26,6 +27,7 @@ interface Competition {
   participantInstructions: string;
   requiredDocs: string[];
   registrationCount: number;
+  csvTemplateUrl: string | null;
   createdAt: string;
 }
 
@@ -59,15 +61,17 @@ export default function CompetitionDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [templateFile, setTemplateFile] = useState<File | null>(null);
+  const [uploadingTemplate, setUploadingTemplate] = useState(false);
+  const [templateMsg, setTemplateMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const fetchCompetition = async () => {
       if (!id) return;
       
       try {
-        console.log('Fetching competition with ID:', id);
         const data = await organizerCompetitionsApi.getOne(id);
-        console.log('Data received:', data);
         setCompetition(data);
       } catch (err) {
         console.error('Error:', err);
@@ -92,6 +96,28 @@ export default function CompetitionDetailPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete competition');
       setDeleting(false);
+    }
+  };
+
+  const handleTemplateUpload = async () => {
+    if (!templateFile || !id) return;
+    setUploadingTemplate(true);
+    setTemplateMsg(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', templateFile);
+      const result = await organizerHttp.postFormData<{ csvTemplateUrl: string }>(
+        `/organizers/competitions/${id}/csv-template`,
+        fd
+      );
+      setCompetition(prev => prev ? { ...prev, csvTemplateUrl: result.csvTemplateUrl } : prev);
+      setTemplateFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setTemplateMsg({ ok: true, text: 'Template uploaded successfully.' });
+    } catch (err) {
+      setTemplateMsg({ ok: false, text: err instanceof Error ? err.message : 'Upload failed' });
+    } finally {
+      setUploadingTemplate(false);
     }
   };
 
@@ -307,6 +333,64 @@ export default function CompetitionDetailPage() {
           </div>
         </div>
       )}
+
+      {/* CSV Template */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
+        <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border)', background: 'var(--bg-2)' }}>
+          <h2 style={{ fontSize: 14, fontWeight: 500 }}>📄 CSV Template for Bulk Registration</h2>
+        </div>
+        <div style={{ padding: 24 }}>
+          <p style={{ color: 'var(--text-3)', fontSize: 13, marginBottom: 16 }}>
+            Upload a sample CSV file showing teachers what columns and format they should use when bulk-registering students for this competition. Each competition can have a different structure.
+          </p>
+
+          {competition.csvTemplateUrl ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, padding: '12px 16px', background: 'var(--bg-2)', borderRadius: 8, border: '1px solid var(--border)' }}>
+              <span style={{ fontSize: 20 }}>📊</span>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontWeight: 500, fontSize: 13 }}>Template uploaded</p>
+                <p style={{ color: 'var(--text-3)', fontSize: 12 }}>Teachers can download this to see the expected format</p>
+              </div>
+              <a
+                href={competition.csvTemplateUrl}
+                download
+                className="btn btn-ghost"
+                style={{ fontSize: 13 }}
+              >
+                ↓ Download
+              </a>
+            </div>
+          ) : (
+            <div style={{ padding: '12px 16px', background: 'var(--bg-2)', borderRadius: 8, border: '1px dashed var(--border)', marginBottom: 20, color: 'var(--text-3)', fontSize: 13 }}>
+              No template uploaded yet. Teachers will use the standard format: <code>full_name, email, nisn, grade, school_name, phone</code>
+            </div>
+          )}
+
+          {templateMsg && (
+            <div className={`toast ${templateMsg.ok ? 'toast-ok' : 'toast-err'}`} style={{ marginBottom: 12 }}>
+              {templateMsg.ok ? '✓' : '⚠'} {templateMsg.text}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={e => setTemplateFile(e.target.files?.[0] ?? null)}
+              style={{ flex: 1, fontSize: 13 }}
+            />
+            <button
+              className="btn btn-primary"
+              onClick={handleTemplateUpload}
+              disabled={!templateFile || uploadingTemplate}
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              {uploadingTemplate ? <Spinner /> : competition.csvTemplateUrl ? '↑ Replace Template' : '↑ Upload Template'}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -82,11 +82,8 @@ export default function NewCompetitionPage() {
       rounds: [],
     };
 
-    console.log('📤 Sending payload:', payload);
-
     try {
-      const result = await organizerCompetitionsApi.create(payload);
-      console.log('✅ Success:', result);
+      await organizerCompetitionsApi.create(payload);
       router.push('/organizer-competitions');
     } catch (err) {
       console.error('❌ Error:', err);

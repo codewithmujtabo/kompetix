@@ -411,10 +411,16 @@ router.get("/redirect/:registrationId", async (req: Request, res: Response) => {
 router.post(
   "/school-batch",
   authMiddleware,
-  schoolAdminOnly,
   async (req: Request, res: Response) => {
     try {
-      const adminId = req.userId!;
+      const actorId = req.userId!;
+      const actorRole = (req as any).userRole as string;
+
+      if (actorRole !== "school_admin" && actorRole !== "teacher") {
+        res.status(403).json({ message: "Only school admins or teachers can create batch payments" });
+        return;
+      }
+
       const { registrationIds } = req.body as { registrationIds: string[] };
 
       if (!Array.isArray(registrationIds) || registrationIds.length === 0) {
@@ -422,26 +428,14 @@ router.post(
         return;
       }
 
-      // Fetch admin's school_id
-      const adminRow = await pool.query(
-        "SELECT school_id FROM users WHERE id = $1",
-        [adminId]
-      );
-      if (!adminRow.rows[0]?.school_id) {
-        res.status(403).json({ message: "Your account is not linked to a school" });
-        return;
-      }
-      const schoolId: string = adminRow.rows[0].school_id;
-
-      // Load each registration — must belong to a student of this school, be in
-      // 'registered' or 'pending_payment' status, and not already in a paid batch.
+      // Load each registration with status + fee
       const regsResult = await pool.query(
-        `SELECT r.id, r.user_id, r.payment_status, r.competition_id,
-                c.registration_fee, u.school_id AS student_school_id
+        `SELECT r.id, r.user_id, r.status, r.comp_id,
+                c.fee AS competition_fee, u.school_id AS student_school_id
          FROM registrations r
          JOIN users u ON u.id = r.user_id
-         JOIN competitions c ON c.id = r.competition_id
-         WHERE r.id = ANY($1::text[])`,
+         JOIN competitions c ON c.id = r.comp_id
+         WHERE r.id = ANY($1::uuid[])`,
         [registrationIds]
       );
 
@@ -450,33 +444,66 @@ router.post(
         return;
       }
 
-      for (const row of regsResult.rows) {
-        if (row.student_school_id !== schoolId) {
-          res.status(403).json({
-            message: `Registration ${row.id} does not belong to a student in your school`,
-          });
+      if (actorRole === "school_admin") {
+        // Fetch admin's school_id and validate students belong to this school
+        const adminRow = await pool.query(
+          "SELECT school_id FROM users WHERE id = $1",
+          [actorId]
+        );
+        if (!adminRow.rows[0]?.school_id) {
+          res.status(403).json({ message: "Your account is not linked to a school" });
           return;
         }
-        if (!["registered", "pending_payment"].includes(row.payment_status)) {
+        const schoolId: string = adminRow.rows[0].school_id;
+        for (const row of regsResult.rows) {
+          if (row.student_school_id !== schoolId) {
+            res.status(403).json({
+              message: `Registration ${row.id} does not belong to a student in your school`,
+            });
+            return;
+          }
+        }
+      } else {
+        // Teacher: validate all students are in teacher_student_links
+        const linkedResult = await pool.query(
+          `SELECT student_id FROM teacher_student_links WHERE teacher_id = $1`,
+          [actorId]
+        );
+        const linkedIds = new Set(linkedResult.rows.map((r: { student_id: string }) => r.student_id));
+        for (const row of regsResult.rows) {
+          if (!linkedIds.has(row.user_id)) {
+            res.status(403).json({
+              message: `Registration ${row.id} does not belong to one of your linked students`,
+            });
+            return;
+          }
+        }
+      }
+
+      for (const row of regsResult.rows) {
+        if (!["registered", "pending_payment"].includes(row.status)) {
           res.status(400).json({
-            message: `Registration ${row.id} has status '${row.payment_status}' and cannot be batched`,
+            message: `Registration ${row.id} has status '${row.status}' and cannot be batched`,
           });
           return;
         }
       }
 
+      // Use school_id from first student's record for the batch (teachers may span schools)
+      const schoolId: string = regsResult.rows[0].student_school_id;
+
       const totalAmount: number = regsResult.rows.reduce(
-        (sum: number, r: { registration_fee: number }) => sum + Number(r.registration_fee),
+        (sum: number, r: { competition_fee: number }) => sum + Number(r.competition_fee),
         0
       );
 
-      // Fetch admin email for Midtrans customer details
-      const adminEmailRow = await pool.query(
+      // Fetch actor email for Midtrans customer details
+      const actorEmailRow = await pool.query(
         "SELECT email, full_name FROM users WHERE id = $1",
-        [adminId]
+        [actorId]
       );
-      const adminEmail: string = adminEmailRow.rows[0]?.email ?? "";
-      const adminName: string = adminEmailRow.rows[0]?.full_name ?? "School Admin";
+      const adminEmail: string = actorEmailRow.rows[0]?.email ?? "";
+      const adminName: string = actorEmailRow.rows[0]?.full_name ?? "School User";
 
       // Create Midtrans Snap token for the total
       const orderId = `BATCH-${Date.now()}`;
@@ -494,7 +521,7 @@ router.post(
            (school_id, created_by, total_amount, status, snap_token, snap_redirect_url)
          VALUES ($1, $2, $3, 'pending', $4, $5)
          RETURNING id`,
-        [schoolId, adminId, totalAmount, snapResult.snapToken, snapResult.redirectUrl]
+        [schoolId, actorId, totalAmount, snapResult.snapToken, snapResult.redirectUrl]
       );
       const batchId: string = batchResult.rows[0].id;
 
@@ -503,11 +530,11 @@ router.post(
         await pool.query(
           `INSERT INTO school_payment_batch_items (batch_id, registration_id, amount)
            VALUES ($1, $2, $3)`,
-          [batchId, row.id, Number(row.registration_fee)]
+          [batchId, row.id, Number(row.competition_fee)]
         );
         // Mark each registration as pending_payment so it can't be double-batched
         await pool.query(
-          "UPDATE registrations SET payment_status = 'pending_payment' WHERE id = $1",
+          "UPDATE registrations SET status = 'pending_payment' WHERE id = $1",
           [row.id]
         );
       }
