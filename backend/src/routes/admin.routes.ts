@@ -1063,6 +1063,121 @@ router.post("/schools", audit({ action: "admin.school.create", resourceType: "sc
   }
 });
 
+// ── GET /api/admin/schools/pending ────────────────────────────────────────
+// List schools awaiting verification + the admin user who applied for each.
+router.get("/schools/pending", async (_req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT s.id, s.npsn, s.name, s.city, s.province, s.address,
+              s.verification_status, s.verification_letter_url,
+              s.applied_at, s.rejection_reason,
+              u.id   AS applicant_user_id,
+              u.full_name AS applicant_name,
+              u.email     AS applicant_email,
+              u.phone     AS applicant_phone
+         FROM schools s
+    LEFT JOIN users   u ON u.id = s.applied_by_user_id
+        WHERE s.verification_status IN ('pending_verification', 'rejected')
+        ORDER BY s.applied_at DESC NULLS LAST`
+    );
+    res.json(result.rows.map((r) => ({
+      id: r.id,
+      npsn: r.npsn,
+      name: r.name,
+      city: r.city,
+      province: r.province,
+      address: r.address,
+      verificationStatus: r.verification_status,
+      verificationLetterUrl: r.verification_letter_url,
+      appliedAt: r.applied_at,
+      rejectionReason: r.rejection_reason,
+      applicant: r.applicant_user_id ? {
+        id: r.applicant_user_id, name: r.applicant_name, email: r.applicant_email, phone: r.applicant_phone,
+      } : null,
+    })));
+  } catch (err) {
+    console.error("Pending schools list error:", err);
+    res.status(500).json({ message: "Failed to load pending schools" });
+  }
+});
+
+// ── POST /api/admin/schools/:id/verify ────────────────────────────────────
+router.post("/schools/:id/verify",
+  audit({ action: "admin.school.verify", resourceType: "school", resourceIdParam: "id" }),
+  async (req, res) => {
+    try {
+      const result = await pool.query(
+        `UPDATE schools
+            SET verification_status = 'verified',
+                verified_at = now(),
+                verified_by_user_id = $1,
+                rejection_reason = NULL
+          WHERE id = $2 AND verification_status <> 'verified'
+          RETURNING id, name, applied_by_user_id`,
+        [req.userId, req.params.id]
+      );
+      if (result.rows.length === 0) {
+        res.status(404).json({ message: "Pending school not found (or already verified)" });
+        return;
+      }
+      const { applied_by_user_id } = result.rows[0];
+      if (applied_by_user_id) {
+        await pushService.sendPushNotification(
+          applied_by_user_id,
+          "School Verified",
+          `Your school "${result.rows[0].name}" has been verified. You can now access the school portal.`,
+          { type: "school_verified", schoolId: result.rows[0].id }
+        );
+      }
+      res.json({ message: "School verified" });
+    } catch (err) {
+      console.error("Verify school error:", err);
+      res.status(500).json({ message: "Failed to verify school" });
+    }
+  }
+);
+
+// ── POST /api/admin/schools/:id/reject ────────────────────────────────────
+router.post("/schools/:id/reject",
+  audit({ action: "admin.school.reject", resourceType: "school", resourceIdParam: "id" }),
+  async (req, res) => {
+    try {
+      const reason = (req.body?.reason as string | undefined)?.trim();
+      if (!reason) {
+        res.status(400).json({ message: "reason is required" });
+        return;
+      }
+      const result = await pool.query(
+        `UPDATE schools
+            SET verification_status = 'rejected',
+                rejection_reason = $1,
+                verified_at = NULL,
+                verified_by_user_id = NULL
+          WHERE id = $2 AND verification_status = 'pending_verification'
+          RETURNING id, name, applied_by_user_id`,
+        [reason, req.params.id]
+      );
+      if (result.rows.length === 0) {
+        res.status(404).json({ message: "Pending school not found" });
+        return;
+      }
+      const { applied_by_user_id } = result.rows[0];
+      if (applied_by_user_id) {
+        await pushService.sendPushNotification(
+          applied_by_user_id,
+          "School Application Rejected",
+          `Your application for "${result.rows[0].name}" was rejected. Reason: ${reason}`,
+          { type: "school_rejected", schoolId: result.rows[0].id, reason }
+        );
+      }
+      res.json({ message: "School application rejected" });
+    } catch (err) {
+      console.error("Reject school error:", err);
+      res.status(500).json({ message: "Failed to reject school" });
+    }
+  }
+);
+
 // ── GET /api/admin/users ──────────────────────────────────────────────────
 router.get("/users", async (req, res) => {
   try {

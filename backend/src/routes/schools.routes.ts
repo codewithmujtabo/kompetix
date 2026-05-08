@@ -3,10 +3,112 @@ import { pool } from "../config/database";
 import { authMiddleware } from "../middleware/auth";
 import { schoolAdminOnly } from "../middleware/school-admin.middleware";
 import { env } from "../config/env";
+import { hashPassword } from "../services/auth.service";
 import PDFDocument from "pdfkit";
 import fetch from "node-fetch";
 
 const router = Router();
+
+// ── POST /api/schools/signup ─────────────────────────────────────────────
+// School coordinator self-signup. Creates the school row in pending_verification
+// state plus a school_admin user account in the same transaction. The applicant
+// then sees a "we'll review your school within 1 business day" page until an
+// admin verifies. Spec F-SP-01 prerequisite.
+router.post("/signup", async (req: Request, res: Response) => {
+  const {
+    schoolName, npsn, address, city, province,
+    contactPhone, verificationLetterUrl,
+    applicantName, applicantEmail, applicantPassword,
+  } = req.body;
+
+  if (!schoolName || !npsn || !applicantName || !applicantEmail || !applicantPassword) {
+    res.status(400).json({ message: "schoolName, npsn, applicantName, applicantEmail, and applicantPassword are required" });
+    return;
+  }
+  if (applicantPassword.length < 6) {
+    res.status(400).json({ message: "Password must be at least 6 characters" });
+    return;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // Reject duplicate NPSN unless the existing record is rejected (allow re-apply)
+    const dup = await client.query(
+      `SELECT id, verification_status FROM schools WHERE npsn = $1`,
+      [npsn]
+    );
+    if (dup.rows.length > 0 && dup.rows[0].verification_status !== "rejected") {
+      await client.query("ROLLBACK");
+      res.status(409).json({
+        message: "A school with this NPSN already exists. If this is yours, contact admin to reset the previous application.",
+      });
+      return;
+    }
+
+    // Reject duplicate email
+    const emailDup = await client.query(`SELECT id FROM users WHERE email = $1`, [applicantEmail.toLowerCase()]);
+    if (emailDup.rows.length > 0) {
+      await client.query("ROLLBACK");
+      res.status(409).json({ message: "This email is already registered." });
+      return;
+    }
+
+    let schoolId: string;
+    if (dup.rows.length > 0) {
+      // Re-apply on a previously-rejected school: update the row in place.
+      schoolId = dup.rows[0].id;
+      await client.query(
+        `UPDATE schools
+            SET name = $1, address = $2, city = $3, province = $4,
+                verification_status = 'pending_verification',
+                verification_letter_url = $5,
+                applied_at = now(),
+                rejection_reason = NULL
+          WHERE id = $6`,
+        [schoolName, address ?? null, city ?? null, province ?? null, verificationLetterUrl ?? null, schoolId]
+      );
+    } else {
+      const ins = await client.query(
+        `INSERT INTO schools
+           (npsn, name, address, city, province,
+            verification_status, verification_letter_url, applied_at)
+         VALUES ($1, $2, $3, $4, $5, 'pending_verification', $6, now())
+         RETURNING id`,
+        [npsn, schoolName, address ?? null, city ?? null, province ?? null, verificationLetterUrl ?? null]
+      );
+      schoolId = ins.rows[0].id;
+    }
+
+    // Create the applicant as a school_admin user, linked to the school.
+    const passwordHash = await hashPassword(applicantPassword);
+    const userIns = await client.query(
+      `INSERT INTO users (email, password_hash, full_name, phone, role, school_id, consent_accepted_at, consent_version)
+       VALUES ($1, $2, $3, $4, 'school_admin', $5, now(), '1.0')
+       RETURNING id`,
+      [applicantEmail.toLowerCase(), passwordHash, applicantName, contactPhone ?? null, schoolId]
+    );
+
+    await client.query(
+      `UPDATE schools SET applied_by_user_id = $1 WHERE id = $2`,
+      [userIns.rows[0].id, schoolId]
+    );
+
+    await client.query("COMMIT");
+    res.status(201).json({
+      message: "Application received. We'll verify your school shortly.",
+      schoolId,
+      verificationStatus: "pending_verification",
+    });
+  } catch (err: any) {
+    await client.query("ROLLBACK");
+    console.error("School signup error:", err);
+    res.status(500).json({ message: "Failed to create application" });
+  } finally {
+    client.release();
+  }
+});
 
 // ── GET /api/schools/search ───────────────────────────────────────────────
 // Search schools using API.co.id

@@ -11,6 +11,7 @@ const NAV = [
   { href: '/competitions',    label: 'Competitions',      icon: '🏆' },
   { href: '/segments',        label: 'Segments',          icon: '🧩' },
   { href: '/notifications',   label: 'Send Notification', icon: '📣' },
+  { href: '/schools-pending', label: 'Pending Schools',   icon: '⏳' },
   { href: '/schools',         label: 'Schools',           icon: '🏫' },
   { href: '/users',           label: 'Users',             icon: '👥' },
 ];

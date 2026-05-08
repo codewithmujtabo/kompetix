@@ -38,12 +38,28 @@ function SchoolLayoutInner({ children }: { children: React.ReactNode }) {
   const router   = useRouter();
 
   useEffect(() => {
-    if (!loading && !user && !pathname.includes('/school-login')) {
+    if (!loading && !user && !pathname.includes('/school-login') && !pathname.includes('/school-signup')) {
       router.replace('/school-login');
     }
   }, [user, loading, pathname, router]);
 
-  if (pathname.includes('/school-login')) return <>{children}</>;
+  // Pages that don't require an authenticated school user
+  if (pathname.includes('/school-login') || pathname.includes('/school-signup')) return <>{children}</>;
+
+  // School-admin users whose school isn't verified yet land on /school-pending.
+  // school_admin only — teachers can be linked to verified schools and don't go through approval.
+  const verificationStatus = (user as any)?.schoolVerificationStatus as 'pending_verification' | 'verified' | 'rejected' | undefined;
+  if (
+    user?.role === 'school_admin' &&
+    verificationStatus &&
+    verificationStatus !== 'verified' &&
+    !pathname.includes('/school-pending')
+  ) {
+    if (typeof window !== 'undefined') router.replace('/school-pending');
+    return null;
+  }
+  // Unverified user on /school-pending: render only the pending page (no sidebar).
+  if (pathname.includes('/school-pending')) return <>{children}</>;
 
   if (loading || !user) return (
     <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

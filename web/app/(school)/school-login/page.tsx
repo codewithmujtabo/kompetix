@@ -81,6 +81,10 @@ export default function SchoolaLogin() {
           </form>
         </div>
         <p style={{ textAlign: 'center', marginTop: 16, fontSize: 12, color: 'var(--text-3)' }}>
+          New school?{' '}
+          <a href="/school-signup" style={{ color: '#22c55e', textDecoration: 'none' }}>Apply for an account</a>
+        </p>
+        <p style={{ textAlign: 'center', marginTop: 4, fontSize: 12, color: 'var(--text-3)' }}>
           Admin?{' '}
           <a href="/login" style={{ color: '#22c55e', textDecoration: 'none' }}>Sign in here</a>
         </p>

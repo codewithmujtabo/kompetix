@@ -111,6 +111,9 @@ async function fetchUserWithRole(userId: string) {
         npsn: school.npsn,
         schoolCity: school.city,
         schoolProvince: school.province,
+        schoolId: school.id,
+        schoolVerificationStatus: school.verification_status,   // pending_verification | verified | rejected
+        schoolRejectionReason: school.rejection_reason ?? null,
       };
     }
   }
