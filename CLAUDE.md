@@ -89,18 +89,25 @@ EXPO_PUBLIC_API_URL=http://<MAC_LAN_IP>:3000/api
 ## Important Codebase Context
 
 ### Authentication
-- JWT stored in `SecureStore` on mobile (via `token.service.ts`), `localStorage` on web.
-- Web uses keys `admin_token` / `admin_user` in localStorage.
-- Role-based: `student`, `parent`, `teacher`, `school_admin`, `admin`, `organizer` (organizer role not yet in DB — Sprint 1 Task 7).
-- `GET /api/auth/me` is the user hydration endpoint on app startup.
+- **Web (since Sprint 14):** JWT issued in an `httpOnly + SameSite=Lax + Secure-in-prod` cookie named `competzy_token`. The cookie is set automatically by every login endpoint (email/password, email-OTP, phone-OTP) via the `issueAuthCookie()` helper in `auth.routes.ts`. localStorage is no longer used. `POST /api/auth/logout` clears the cookie. `web/lib/auth/{context,organizer-context,school-context}.tsx` hydrate via `GET /api/auth/me` on mount; the same shared cookie powers all three portals.
+- **Single-session implication:** because all three web portals share one cookie, a browser cannot be admin and organizer simultaneously. Log out to switch roles.
+- **Mobile:** JWT stored in `SecureStore` and sent as `Authorization: Bearer …`. The auth middleware reads the Bearer header first, then falls back to the cookie — so mobile is unaffected by the web change.
+- **CORS:** backend now opts in to `credentials: true` with an explicit origin allowlist (`CORS_ORIGINS` env, defaults to `http://localhost:3000,http://localhost:3001`). Empty Origin (server-to-server, mobile) is allowed.
+- **Soft-deleted users are 401-rejected** by the auth middleware, so deleting an account immediately invalidates all live sessions.
+- Role-based: `student`, `parent`, `teacher`, `school_admin`, `admin`, `organizer`.
+- `GET /api/auth/me` is the user hydration endpoint on app startup. Now returns `kid` (KX-2026-NNNNNNN) and, for `school_admin`, `schoolVerificationStatus` + `schoolRejectionReason`.
 
 ### Database
 - Schema is in `backend/src/db/schema.sql`.
-- Tables: `users`, `students`, `parents`, `teachers`, `competitions`, `competition_rounds`, `registrations`, `payments`, `documents`, `notifications`, `otp_codes`, `invitations`, `parent_student_links`, `teacher_student_links`, `bulk_registration_jobs`, `favorites`, `schools`, `historical_participants`, `school_payment_batches`, `school_payment_batch_items`.
+- Tables: `users`, `students`, `parents`, `teachers`, `competitions`, `competition_rounds`, `registrations`, `payments`, `documents`, `notifications`, `otp_codes`, `invitations`, `parent_student_links`, `teacher_student_links`, `bulk_registration_jobs`, `favorites`, `schools`, `historical_participants`, `school_payment_batches`, `school_payment_batch_items`, `organizers`, **`audit_log` (Sprint 14)**, **`payment_webhook_events` (Sprint 14)**.
 - Migrations live in `backend/migrations/` as timestamped `.sql` files. Run with `npm run db:migrate`.
-- `DATABASE_URL` format: `postgresql://user:password@localhost:5432/competzy` (renamed `beyond_classroom` → `kompetix` on May 6, 2026; rebranded `kompetix` → `competzy` on May 8, 2026 — **local DB still needs `ALTER DATABASE kompetix RENAME TO competzy;` and a `.env` update**).
-- **Latest migration:** `1746500000000_teacher-student-links.sql` — must be run on VPS.
+- `DATABASE_URL` format: `postgresql://user:password@localhost:5432/competzy`. Local DB has been renamed to `competzy` ✅. **VPS still needs**: `ALTER DATABASE kompetix RENAME TO competzy;` (or `beyond_classroom RENAME TO competzy;` if VPS skipped the May 6 rename) + update `DATABASE_URL` in VPS `backend/.env`.
+- **Latest migration:** `1747500000000_school-verification.sql` (Sprint 16). Earlier in this batch: `1746900000000_audit-log`, `1747000000000_soft-delete`, `1747100000000_payment-webhook-events`, `1747200000000_add-person-kid`, `1747300000000_drop-orphan-parent-school-id`, `1747400000000_add-payer-user-id`. Run all on VPS.
+- **Soft delete (Sprint 14):** `users`, `students`, `parents`, `teachers`, `registrations`, `payments`, `documents`, `historical_participants`, `notifications` all have a nullable `deleted_at TIMESTAMPTZ`. Live queries must filter `deleted_at IS NULL` — use `liveFilter("alias")` from `backend/src/db/query-helpers.ts`. Helpers `softDelete(table, id)` and `restore(table, id)` are also exported (whitelisted to the 9 tables above).
+- **Person-KID (Sprint 15):** `users.kid` is a `KX-2026-NNNNNNN` immutable identifier (sequence-backed, UNIQUE, NOT NULL). All 19 existing users were backfilled. Distinct from `registrations.registration_number` (`CTZ-2026-XXXXX`).
 - **students table school column:** The column is `school_name TEXT` (not `school`). There is also a `school_id UUID` FK to the `schools` table. Always use `COALESCE(sc.name, s.school_name)` with a `LEFT JOIN schools sc ON s.school_id = sc.id` when you need the school name in queries.
+- **Schools verification (Sprint 16):** `schools.verification_status` ∈ {`pending_verification`, `verified`, `rejected`}. Existing rows defaulted to `verified`. Self-signed-up schools start `pending_verification` until an admin approves at `/schools-pending`.
+- **Payments payer attribution (Sprint 15):** `payments.payer_user_id` (FK users.id, nullable) + `payments.payer_kind` ∈ {`self`, `parent`, `school`, `sponsor`}. Existing rows backfilled to `(user_id, 'self')`. The mobile pay screen and school bulk-batch flow set this on insert.
 
 ### Registration Flow (updated May 2026)
 1. Student registers → status = `pending_approval`
@@ -110,25 +117,46 @@ EXPO_PUBLIC_API_URL=http://<MAC_LAN_IP>:3000/api
 5. No manual proof upload — Midtrans webhook is the only confirmation mechanism
 
 ### Payments
-- Midtrans Snap: `POST /api/payments/snap` creates a transaction and returns a `snap_token`.
+- Midtrans Snap: `POST /api/payments/snap` creates a transaction and returns a `snap_token`. Body now also accepts optional `payerKind` (`self` | `parent` | `school` | `sponsor`) and `payerUserId` (Sprint 15).
 - Snap is blocked with 400 if registration is still `pending_approval` (not yet admin-approved).
-- Webhook at `POST /api/payments/webhook` — verifies Midtrans signature, marks `registrations.status = 'paid'` on settlement.
+- Webhook at `POST /api/payments/webhook` — verifies Midtrans signature **and** dedupes by `(provider, order_id, signature_key)` against the `payment_webhook_events` table (Sprint 14). Duplicate retries return `200 OK (duplicate)` without re-processing.
 - **Payment proof upload has been removed** — Midtrans auto-confirms.
 - VA expiry: webhook `expire` event resets registration back to `registered` (T10 fix).
 - **Verify endpoint:** `GET /api/payments/verify/:registrationId` — calls Midtrans Status API directly and force-updates DB to `paid` when settled. Used by the app after browser close to sync status without relying on the webhook (which can't reach localhost in sandbox). In production the webhook still handles it; verify is a belt-and-suspenders backup.
-- `pay.tsx` always calls verify after the payment browser closes (both "Return to merchant" and user-dismiss paths). Only shows "Payment Completed!" when DB confirms `paid`. Polls up to 6× with 3s gaps (~18s total).
+- `pay.tsx` flow (Sprint 15): on screen mount, shows a "Dibayar Oleh" radio selector (4 options) **before** opening Snap. User picks payer attribution then taps "Lanjutkan ke Pembayaran". Auto-launch removed.
+- After browser close, `pay.tsx` calls verify (both "Return to merchant" and user-dismiss paths). Only shows "Payment Completed!" when DB confirms `paid`. Polls up to 6× with 3s gaps (~18s total).
+- **School-batch payments (Sprint 16.4):** Midtrans receipt is now issued in the SCHOOL'S name (was the coordinator's personal name); coordinator email remains the contact. This is what reimbursement workflows need.
 - Sandbox keys are in `.env`. Switch to production keys before launch.
 
-### File Storage (Current — Needs Migration)
-- Files stored locally in `backend/uploads/<uuid>/`.
-- Served at `/api/uploads/<uuid>/<filename>`.
-- **This will be lost on server restart/redeployment.** Sprint 6 migrates this to MinIO.
-- `backend/src/services/storage.service.ts` is the abstraction layer — only this file needs updating for MinIO.
+### File Storage (Sprint 14 — signed URLs)
+- Files stored locally in `backend/uploads/<userId>/` in dev, or in MinIO/S3 when `MINIO_ENDPOINT` is set.
+- **All client-facing URLs are now signed and 15-min expiry** (Sprint 14):
+  - S3/MinIO: real presigned GET URLs via `@aws-sdk/s3-request-presigner`
+  - Local disk dev: JWT-token URLs at `/uploads-signed/<token>` served by an endpoint in `index.ts` with path-traversal guard
+- `GET /api/documents` returns signed URLs in the `fileUrl` field. Raw `/uploads/...` static path still served for backward compat in dev — **remove from production nginx config**.
+- `backend/src/services/storage.service.ts` exposes `storeFile`, `deleteFile`, `getSignedUrl`, `verifySignedUrlToken`, and `isS3Configured`.
+
+### Audit Log (Sprint 14)
+- Append-only `audit_log` table records every privileged write. Columns: `user_id`, `user_role` (snapshot), `action`, `resource_type`, `resource_id`, `ip`, `user_agent`, `payload` (JSONB, with secrets redacted), `created_at`.
+- Wired into 16 admin/organizer routes via `audit({ action, resourceType, resourceIdParam })` middleware (`backend/src/middleware/audit.ts`). Action labels look like `admin.competition.create`, `organizer.registration.approve`, `admin.school.verify`, etc.
+- Logs only on 2xx responses; never blocks the request (fire-and-forget).
+- Redacts: `password`, `current_password`, `token`, `snap_token`, `signature_key`, OTP `code`, parent invite `pin`.
+- Retention: 5 years (purged by retention cron, see below).
+
+### Retention Cron (Sprint 14)
+- `backend/src/services/cron.service.ts` → `scheduleRetentionEnforcement()` runs daily at 02:00.
+- Soft-deletes `documents` whose competition ended > 1 year ago.
+- Hard-deletes `audit_log` rows older than 5 years.
+- Hard-deletes already-read `notifications` older than 1 year.
+
+### Rate Limiting
+- `express-rate-limit` is wired to: `/api/auth/{signup,login}` (20/15min), `/api/auth/{send,verify}-otp` (5–10/window), parent PIN verify (5/15min per email), and `/api/bulk-registration/upload` (3/hour per user — Sprint 14 addition). Returns 429 with friendly JSON.
 
 ### Bulk Registration
-- CSV upload → `POST /api/bulk-registration/upload` → creates a job in `bulk_registration_jobs`.
+- CSV upload → `POST /api/bulk-registration/upload` (rate-limited 3/hour) → creates a job in `bulk_registration_jobs`.
 - Background cron (every 1 min) in `backend/src/services/bulk-processor.service.ts` processes pending jobs.
-- **Known gaps (Sprint 0 Task 3):** bulk processor doesn't check competition fee, doesn't email temp password to new users, doesn't insert school_name for new students.
+- **Hard-match dedup (Sprint 15):** if NISN + email both miss but `LOWER(full_name) + school + grade` matches exactly one existing student, the row links to that user instead of creating a duplicate. Multiple matches throw "Ambiguous hard-match" so an operator can resolve manually.
+- ~~Known gaps (Sprint 0 Task 3): bulk processor doesn't check competition fee, doesn't email temp password to new users, doesn't insert school_name~~ — all fixed in earlier sprints.
 
 ### Parent-Student Linking
 - Student sends invite to parent email → `POST /api/parents/invite-parent` → generates 6-digit PIN → emails parent.
@@ -163,31 +191,38 @@ EXPO_PUBLIC_API_URL=http://<MAC_LAN_IP>:3000/api
 - Falls back to querying the local `schools` DB table when key is not set (returns up to 20 matches by name).
 
 ### Web Portal Structure
-- `web/app/page.tsx` — **Role selector landing page** (Admin → `/login`, Organizer → `/organizer-login`, Teacher disabled/coming soon)
-- `web/app/(dashboard)/` — Admin portal (auth-guarded by `(dashboard)/layout.tsx`)
-- `web/app/(dashboard)/dashboard/page.tsx` — Dashboard home
-- `web/app/(dashboard)/registrations/page.tsx` — **All registrations** with status filter tabs (All/Pending/Registered/Paid/Rejected); approve/reject only for `pending_approval`
+- `web/app/page.tsx` — **Role selector landing page** with **footer** (Privacy / Terms / Contact links — Sprint 14)
+- `web/app/privacy/page.tsx` — UU PDP-aware Privacy Policy placeholder (DRAFT, needs counsel review) — Sprint 14
+- `web/app/terms/page.tsx` — Terms of Service placeholder (DRAFT) — Sprint 14
+- `web/app/login/page.tsx` — Admin login (has ← Back to role selector)
+- `web/app/(dashboard)/` — Admin portal (cookie-guarded by `(dashboard)/layout.tsx`)
+- `web/app/(dashboard)/dashboard/page.tsx` — **Rewritten in Sprint 15**: 4 KPI cards (Registrations, Paid Rate, Revenue, Avg Time to Pay) + 90-day registrations sparkline + Top-3 competitions panel + 6-link grid
+- `web/app/(dashboard)/registrations/page.tsx` — All registrations with status filter tabs (All/Pending/Registered/Paid/Rejected); approve/reject only for `pending_approval`
 - `web/app/(dashboard)/competitions/page.tsx` — Competition management (create/edit/delete)
 - `web/app/(dashboard)/users/page.tsx` — User management
 - `web/app/(dashboard)/schools/page.tsx` — Schools management
+- `web/app/(dashboard)/schools-pending/page.tsx` — **NEW Sprint 16:** verification queue for school applications (verify / reject with reason)
+- `web/app/(dashboard)/segments/page.tsx` — **NEW Sprint 15:** 3 pre-built audiences (lapsed >1y, multi-comp veterans, EMC-only never tried KMC) for cross-sell campaigns
 - `web/app/(dashboard)/notifications/page.tsx` — Broadcast notifications
-- `web/app/login/page.tsx` — Admin login (has ← Back button to role selector)
-- `web/app/(organizer)/` — Organizer portal (auth-guarded by `(organizer)/layout.tsx`)
-- `web/app/(organizer)/organizer-login/page.tsx` — Organizer login (has ← Back button to role selector)
+- `web/app/(organizer)/` — Organizer portal (cookie-guarded by `(organizer)/layout.tsx`)
+- `web/app/(organizer)/organizer-login/page.tsx` — Organizer login
 - `web/app/(organizer)/organizer-dashboard/page.tsx` — Organizer dashboard
 - `web/app/(organizer)/organizer-competitions/page.tsx` — Competitions list (publish/close actions)
+- `web/app/(organizer)/organizer-competitions/new/page.tsx` — **Built (teammate) + Sprint 15 added `postPaymentRedirectUrl` field**
+- `web/app/(organizer)/organizer-competitions/[id]/page.tsx` — Competition detail view (built by teammate)
+- `web/app/(organizer)/organizer-competitions/[id]/edit/page.tsx` — Edit form (built; same redirect-URL field added)
 - `web/app/(organizer)/participants/page.tsx` — Participants view per competition (approve/reject)
 - `web/app/(organizer)/revenue/page.tsx` — Revenue overview (stat cards + per-competition table)
-- `web/lib/api/index.ts` — All admin API call functions
-- `web/lib/auth/context.tsx` — Admin auth context (localStorage: `admin_token` / `admin_user`)
-- `web/lib/auth/organizer-context.tsx` — Organizer auth context (localStorage: `organizer_token` / `organizer_user`)
-- `web/components/Sidebar.tsx` — Admin nav
-- `web/next.config.mjs` — API proxy config (`.ts` version not supported in Next.js 14 — keep `.mjs`)
-
-**Organizer portal missing pages (not yet built — teammate's task):**
-- `web/app/(organizer)/organizer-competitions/new/page.tsx` — Create competition form
-- `web/app/(organizer)/organizer-competitions/[id]/page.tsx` — Competition detail view
-- `web/app/(organizer)/organizer-competitions/[id]/edit/page.tsx` — Edit competition form
+- `web/app/(school)/` — School portal (cookie-guarded by `(school)/layout.tsx` with verification gating)
+- `web/app/(school)/school-login/page.tsx` — School login (has "New school? Apply for an account" link)
+- `web/app/(school)/school-signup/page.tsx` — **NEW Sprint 16:** self-signup form for school + coordinator account
+- `web/app/(school)/school-pending/page.tsx` — **NEW Sprint 16:** shown to logged-in coordinators while their school is `pending_verification` or `rejected`
+- `web/app/(school)/school-dashboard/page.tsx` — School dashboard (stats + quick links; **Achievement PDF tile added in Sprint 16**)
+- `web/app/(school)/{bulk-registration,bulk-payment,school-students,school-my-students,school-my-competitions,school-registrations,school-deadline}/page.tsx` — gated behind `verification_status = 'verified'`
+- `web/lib/api/client.ts` — **Rewritten in Sprint 14:** single shared http function with `credentials: 'include'`; `adminHttp`/`organizerHttp`/`schoolHttp` aliases
+- `web/lib/auth/{context,organizer-context,school-context}.tsx` — **Rewritten in Sprint 14** to hydrate via `/api/auth/me` cookie auth (no more localStorage)
+- `web/components/Sidebar.tsx` — Admin nav with Dashboard, Registrations, Competitions, **Segments**, **Pending Schools**, Send Notification, Schools, Users
+- `web/next.config.mjs` — API proxy config
 
 **Test accounts (local dev):**
 - Admin: `admin@eduversal.com` / (password set via `npm run db:create-admin` in backend)
@@ -210,25 +245,34 @@ EXPO_PUBLIC_API_URL=http://<MAC_LAN_IP>:3000/api
 
 ---
 
-## Current Task Status (as of May 8, 2026 — Session 4)
+## Current Task Status (as of May 9, 2026 — Session 5)
 
-**Sprints 0–12 fully complete. All backend tasks done.**
-**Latest: full product rebrand `Kompetix` → `Competzy` across app, web, backend, and docs (May 8, 2026 — Sprint 12).**
+**Sprints 0–16 fully complete locally. All backend code for the July 1 soft launch is shipped.**
+**Latest:** Sprint 14 (compliance & cookie auth) + Sprint 15 (Launch 1 polish) + Sprint 16 (school portal self-signup + achievement PDF) + Sprint 13/17 production templates.
 
-### NEXT STEP TO START:
-Build the missing organizer competition CRUD pages (teammate's task):
-- `web/app/(organizer)/organizer-competitions/new/page.tsx`
-- `web/app/(organizer)/organizer-competitions/[id]/page.tsx`
-- `web/app/(organizer)/organizer-competitions/[id]/edit/page.tsx`
+7 commits ahead of `origin/main` and `eduversal/main`:
+```
+6f83ec6 feat(deploy): production infra templates (nginx, pm2, eas, k6, runbook)
+c7e117f feat(school): achievement PDF + school-named bulk-payment receipts
+83c4bbd feat(school): self-signup + admin verification + portal gating
+1b9b4b1 feat(security): httpOnly cookie auth migration
+29ae506 feat(launch1): Sprint 15 polish for Phase 1 soft launch
+d0fc10c feat(security): Sprint 14 compliance & hardening
+165c5c0 feat(rebrand): Kompetix → Competzy across app, web, backend, docs
+```
 
-Backend organizer routes for create (`POST /api/organizers/competitions`) and update (`PUT /api/organizers/competitions/:id`) already exist in `organizer.routes.ts`.
-
-**Also pending (VPS, do manually):**
-- **T21** — MinIO Docker on VPS: `docker run -d -p 9000:9000 -p 9001:9001 -e MINIO_ROOT_USER=... -e MINIO_ROOT_PASSWORD=... quay.io/minio/minio server /data --console-address :9001`, then set the 5 `MINIO_*` env vars in `backend/.env`.
-- **Run migrations on VPS:** `npm run db:migrate` to apply `1746500000000_teacher-student-links.sql` (already applied locally).
-- **Rename DB locally and on VPS:** `ALTER DATABASE kompetix RENAME TO competzy;` (and on VPS: `ALTER DATABASE beyond_classroom RENAME TO competzy;` if it was never renamed). Then update `DATABASE_URL` in `backend/.env` on each environment.
-- **api.co.id key:** Register at api.co.id to get `API_CO_ID_KEY` for real school search in signup.
-- **Expo project ID:** Run `npx eas init` inside `app/` for production push notifications.
+### Manual rollout still required (Sprint 13/17 — needs your access)
+- **MinIO Docker on VPS** (T21): `docker run -d -p 9000:9000 -p 9001:9001 -e MINIO_ROOT_USER=... -e MINIO_ROOT_PASSWORD=... quay.io/minio/minio server /data --console-address :9001`, then set the 5 `MINIO_*` env vars in VPS `backend/.env`.
+- **Run all migrations on VPS:** `cd backend && npm run db:migrate` to apply `1746500000000` through `1747500000000`.
+- **Rename DB on VPS:** `ALTER DATABASE kompetix RENAME TO competzy;` (or `beyond_classroom RENAME TO competzy;`). Update VPS `DATABASE_URL`.
+- **Production deploy:** copy `deploy/nginx.conf` to `/etc/nginx/sites-available/competzy.conf`; `pm2 start deploy/pm2.config.js --env production` after `npm run build` in `backend/` and `web/`. See `docs/RUNBOOK.md`.
+- **DNS + SSL:** A records for `competzy.com`, `api.competzy.com`, `admin.competzy.com`, `organizer.competzy.com`, `partner.competzy.com`, `compete.competzy.com`. Then `certbot --nginx -d ...`.
+- **Midtrans production keys** + webhook URL `https://api.competzy.com/api/payments/webhook`.
+- **EAS init:** `cd app && npx eas init` (needs expo.dev account). Fill in `appleId`, `ascAppId`, `appleTeamId` in `app/eas.json`.
+- **Apple Developer + Play Console** for App Store / Play Store submission.
+- **api.co.id production key** (`API_CO_ID_KEY` in VPS `.env`).
+- **Privacy + Terms legal review** of `web/app/privacy/page.tsx` and `web/app/terms/page.tsx` (currently DRAFT).
+- **Load test against staging** once it's up: `k6 run loadtest/k6-registration.js --env BASE=https://staging-api.competzy.com`.
 
 ---
 
@@ -318,6 +362,51 @@ Backend organizer routes for create (`POST /api/organizers/competitions`) and up
 | Teacher redirect safety net | `competitions.tsx` also defaulted to "student" and had no redirect for teachers. Fix: added `useEffect` that redirects teachers to `/(tabs)/teacher-dashboard` and admins to `/(tabs)/web-portal-redirect` when `userRole` resolves. | `app/app/(tabs)/competitions.tsx` |
 | Teacher "monitoring mode" | Removed Bulk Registration and Export Student Data from teacher quick actions. Replaced with monitoring-only tiles: Competitions, View Reports, Deadlines, My Students. Updated web portal banner text to remove bulk registration mention. | `app/app/(tabs)/teacher-actions.tsx` |
 
+### SPRINT 13 — Production Infra Templates (May 9, 2026 Session 5) ✅ LOCAL ARTIFACTS DONE
+| Item | What | Files |
+|---|---|---|
+| nginx config | Reverse proxy + SSL termination for api/admin/organizer/school/partner subdomains, 12 MB body limit, HTTP→HTTPS redirect | `deploy/nginx.conf` |
+| pm2 supervisor | Cluster mode for backend (one worker per CPU), single fork for Next.js, log rotation paths | `deploy/pm2.config.js` |
+| Expo build config | development/preview/production profiles; production sets EXPO_PUBLIC_API_URL=`https://api.competzy.com/api` | `app/eas.json` |
+| k6 load test | 500-VU ramp testing signup → /me → /competitions → POST /registrations; thresholds p95<2s, error<2% | `loadtest/k6-registration.js`, `loadtest/README.md` |
+| Runbook | Deploy steps, common incident playbooks (API down, payment stuck, signed-URL 403, soft-delete recovery, audit-log forensics, rollback) | `docs/RUNBOOK.md` |
+
+### SPRINT 16 — School Portal Soft Launch (May 9, 2026 Session 5) ✅ COMPLETE
+| Task | What | Key files |
+|---|---|---|
+| 16.1 | **School signup + verification flow** — new migration `1747500000000_school-verification.sql` adds `verification_status`, `verification_letter_url`, `applied_by_user_id`, `applied_at`, `verified_at`, `verified_by_user_id`, `rejection_reason` columns. Existing rows default to `verified` to preserve seeded data. New `POST /api/schools/signup` (public) creates school + school_admin user in one transaction. New admin endpoints `GET /api/admin/schools/pending`, `POST /api/admin/schools/:id/verify`, `POST /api/admin/schools/:id/reject` (all wrapped in `audit()`). `/api/auth/me` exposes `schoolVerificationStatus` + rejection reason. | `backend/migrations/1747500000000_school-verification.sql`, `backend/src/routes/schools.routes.ts`, `backend/src/routes/admin.routes.ts`, `backend/src/routes/auth.routes.ts` |
+| 16.2 | **Layout gating** — unverified `school_admin` users land on `/school-pending`; `/school-signup` is reachable unauthenticated. New web pages `/school-signup` and `/school-pending`. New admin page `/schools-pending` with verify/reject UI. Sidebar gains "Pending Schools" link. | `web/app/(school)/layout.tsx`, `web/app/(school)/school-signup/page.tsx`, `web/app/(school)/school-pending/page.tsx`, `web/app/(dashboard)/schools-pending/page.tsx`, `web/components/Sidebar.tsx` |
+| 16.3 | **Achievement PDF export** — new `GET /api/schools/export/achievement.pdf` renders A4 PDF with school name + NPSN header, per-student rows from historical_participants + recent registrations, page-break safety, Eduversal/Competzy brand strip. School dashboard gains "Achievement PDF" tile. | `backend/src/routes/schools.routes.ts`, `web/app/(school)/school-dashboard/page.tsx` |
+| 16.4 | **Bulk-payment payer attribution** — `/api/payments/school-batch` now passes the school's name as Midtrans `customer_name` (was the coordinator's personal name). Receipts go to coordinator email but receipt-bearing party is the school. | `backend/src/routes/payments.routes.ts` |
+
+### SPRINT 15 — Launch 1 Polish (May 8, 2026 Session 4) ✅ COMPLETE
+| Task | What | Key files |
+|---|---|---|
+| 15.1 | **3 missing organizer CRUD pages** — pages were already built by teammate; added missing `postPaymentRedirectUrl` field (form input + backend POST/PUT support) for the redirect-to-existing-platform flow. | `backend/src/routes/organizer.routes.ts`, `web/app/(organizer)/organizer-competitions/{new,[id]/edit}/page.tsx` |
+| 15.2 | **/completeness endpoint** — `GET /api/registrations/:id/completeness` returns per-requirement boolean (profile, documents, payment, school NPSN, parent linked) + `is_ready`. Powers pre-payment gating now and pre-exam gating in Launch 2. | `backend/src/routes/registrations.routes.ts` |
+| 15.3 | **Person-KID** — new migration adds `users.kid` (`KX-2026-NNNNNNN`) with sequence + backfill. UNIQUE indexed. Exposed in `/api/auth/me`. Distinct from registration_number. | `backend/migrations/1747200000000_add-person-kid.sql`, `backend/src/routes/auth.routes.ts` |
+| 15.4 | **Parent-payer attribution UI** — new migration adds `payments.payer_user_id` + `payer_kind`. Backend `POST /api/payments/snap` accepts optional `payerKind` + `payerUserId`. Mobile `pay.tsx` adds 4-option "Dibayar Oleh" radio screen before Snap launches; auto-launch removed. | `backend/migrations/1747400000000_add-payer-user-id.sql`, `backend/src/routes/payments.routes.ts`, `app/services/payments.service.ts`, `app/app/(payment)/pay.tsx` |
+| 15.5 | **Profile snapshot mobile display** — already implemented (line 162 `my-registration-details.tsx`). | `app/app/(tabs)/my-registration-details.tsx` |
+| 15.6 | **Bulk CSV hard-match dedup** — when NISN + email both miss, `LOWER(full_name) + school + grade` exact match links to existing student instead of creating duplicate. Ambiguous (>1) matches throw. | `backend/src/services/bulk-processor.service.ts` |
+| 15.7 | **Admin segments viewer** — `GET /api/admin/segments` returns 3 pre-built audiences: lapsed >1y, multi-comp veterans, EMC-only never tried KMC. New `/segments` web page. | `backend/src/routes/admin.routes.ts`, `web/app/(dashboard)/segments/page.tsx` |
+| 15.8 | **Cross-comp KPI dashboard** — `GET /api/admin/kpi` returns totals (registrations, paid, free, revenue Rp), paid rate, avg time-to-payment, top-3 competitions, 90-day daily series. Admin dashboard page rewritten with stat cards + sparkline + top-3 panel. | `backend/src/routes/admin.routes.ts`, `web/app/(dashboard)/dashboard/page.tsx` |
+| 15.9 | **Calendar/.ics export** — `GET /api/registrations/:id/calendar.ics` returns RFC 5545 single-event iCal with 3h default duration and proper escaping. | `backend/src/routes/registrations.routes.ts` |
+| 15.10 | **Drop orphan column** — `students.parent_school_id` removed (was orphaned from earlier schema rev). | `backend/migrations/1747300000000_drop-orphan-parent-school-id.sql` |
+| 15.11 | **Double-stringify audit** — confirmed `app/services/competitions.service.ts:96` was the only offender (already fixed). Other `JSON.stringify` usages all use `fetch()` directly, not `apiRequest`. | n/a |
+
+### SPRINT 14 — Compliance & Security Hardening (May 8–9, 2026 Sessions 4–5) ✅ COMPLETE
+| Task | What | Key files |
+|---|---|---|
+| 14.1 | **Audit log table + middleware** — new migration creates append-only `audit_log` (id, user_id, user_role snapshot, action, resource_type, resource_id, ip, user_agent, payload JSONB, created_at) with indexes. New `audit()` middleware redacts password/token/PIN/OTP from payload, fires async (never blocks request), logs only on 2xx. Wired to 16 admin/organizer/school routes. | `backend/migrations/1746900000000_audit-log.sql`, `backend/src/middleware/audit.ts`, `backend/src/routes/{admin,organizer}.routes.ts` |
+| 14.2 | **Soft delete on 9 PII tables** — migration adds `deleted_at` to users, students, parents, teachers, registrations, payments, documents, historical_participants, notifications + partial "live" indexes. New `query-helpers.ts` with `liveFilter()`, `softDelete()`, `restore()` (whitelisted tables). Auth middleware now rejects soft-deleted users with 401. | `backend/migrations/1747000000000_soft-delete.sql`, `backend/src/db/query-helpers.ts`, `backend/src/middleware/auth.ts` |
+| 14.3 | **Retention enforcement cron** — daily 02:00: soft-delete documents whose competition ended >1 year ago, hard-delete audit_log >5 years, hard-delete read notifications >1 year. | `backend/src/services/cron.service.ts` |
+| 14.4 | **Signed URLs for documents** — new `getSignedUrl()` in storage.service: S3 presigned via `@aws-sdk/s3-request-presigner` (15-min expiry) for production, JWT-token URL via new `/uploads-signed/:token` endpoint for local dev. `/api/documents` returns signed URLs. | `backend/src/services/storage.service.ts`, `backend/src/index.ts`, `backend/src/routes/documents.routes.ts` |
+| 14.5 | **httpOnly cookie auth migration** — backend installs cookie-parser, login endpoints set `competzy_token` httpOnly + SameSite=Lax + Secure-in-prod cookie via `issueAuthCookie()`. New `POST /api/auth/logout` clears it. Auth middleware reads Bearer header first then falls back to cookie. CORS opts in to credentials with explicit origin allowlist. Web client rewritten with `credentials: 'include'`; all 3 auth contexts hydrate via `/api/auth/me`. localStorage no longer used by web. **Single-session change**: a browser can't be both admin and organizer simultaneously. | `backend/src/index.ts`, `backend/src/middleware/auth.ts`, `backend/src/routes/auth.routes.ts`, `web/lib/api/client.ts`, `web/lib/auth/{context,organizer-context,school-context}.tsx` |
+| 14.6 | **Rate limit bulk uploads** — new `bulkUploadLimiter` (3/hour per user) added to `/api/bulk-registration/upload`. | `backend/src/middleware/rate-limit.ts`, `backend/src/routes/bulk-registration.routes.ts` |
+| 14.7 | **Webhook idempotency** — new `payment_webhook_events` table with UNIQUE(provider, order_id, signature_key). Webhook handler INSERTs ON CONFLICT DO NOTHING; if dup, returns 200 noop without re-processing. Prevents double-settlement on Midtrans retries. | `backend/migrations/1747100000000_payment-webhook-events.sql`, `backend/src/routes/payments.routes.ts` |
+| 14.8 | **Privacy + Terms placeholder pages** — UU PDP-aware drafts at `/privacy` and `/terms` (DRAFT, needs counsel review). Footer link from `/` role selector. | `web/app/privacy/page.tsx`, `web/app/terms/page.tsx`, `web/app/page.tsx` |
+| 14.9 | **Error handler upgrade** — respects `err.statusCode`, logs 4xx as warn (5xx as error), structured JSON response, doesn't leak internal messages on 5xx. body-parser 400s no longer pollute the error log as "Unhandled error". | `backend/src/middleware/error-handler.ts` |
+
 ### SPRINT 12 — Rebrand Kompetix → Competzy (May 8, 2026 Session 4) ✅ COMPLETE
 | Fix | What | Key files |
 |---|---|---|
@@ -377,13 +466,18 @@ T21 (MinIO) ──────────────► T22 (storage migration
 - `web/tsconfig.tsbuildinfo` is committed — it's a build cache file. Add to `.gitignore` eventually.
 - `app/constants/api.ts` and `app/config/api.ts` both exist — app uses `config/api.ts`. The constants one is legacy.
 - Competition `id` column is `TEXT` (not UUID) — changed in migration `1744070500000`. IDs look like `comp_emc_2026_main`.
-- The `students` and `parents` tables have orphaned `parent_school_id` columns (Sprint 7 to drop).
+- ~~The `students` and `parents` tables have orphaned `parent_school_id` columns (Sprint 7 to drop).~~ Dropped on `students` in Sprint 15 migration `1747300000000`. `parents` table never had the column despite earlier comments.
 - Disk folder renamed `kompetix/` → `competzy/` on May 8, 2026. Reopen any IDE workspace, terminal tab, or Claude Code session that pointed at the old path: `/Users/<you>/Desktop/All/Internship Eduversal/competzy/`.
-- DB rename history: `beyond_classroom` → `kompetix` (May 6, 2026, local only) → `competzy` (May 8, 2026 rebrand). Pending: `ALTER DATABASE kompetix RENAME TO competzy;` on local + VPS, then update `DATABASE_URL` in each environment's `.env`.
+- DB rename history: `beyond_classroom` → `kompetix` (May 6, 2026, local only) → `competzy` (May 8, 2026, local **applied ✅**). VPS still pending: `ALTER DATABASE … RENAME TO competzy;` + update `DATABASE_URL`.
 - Registration number prefix rebranded `KMP-2026-XXXXX` → `CTZ-2026-XXXXX` on May 8, 2026 via migration `1746800000000_rebrand-registration-prefix-to-CTZ.sql`. Existing rows keep their `KMP-` numbers; only new rows pick up the new default.
 - There are 3 registrations with status `approved` in the DB (legacy status, pre-T28). These are displayed correctly with a green badge but cannot be acted on via the approval UI. Not a bug — they predate the `pending_approval` flow.
 - `competitions.tsx` defaults `userRole` to `""` (not "student") when user context hasn't loaded. Guard: `useEffect` redirects teachers/admins away. Same change in `_layout.tsx`.
 - `pay.tsx` polling: after browser close (any path), calls `GET /api/payments/verify/:registrationId` up to 6× with 3s gaps. The verify endpoint calls Midtrans Status API and force-updates DB — this is what makes sandbox work without a live webhook. In production the webhook arrives first and verify is a no-op.
+- **Sprint 14 dual-auth quirk:** auth middleware accepts both Authorization Bearer header AND `competzy_token` cookie. This means existing localStorage-based logins (from before the cookie migration) continue to work in the wild as long as the JWT hasn't expired. Once everyone re-logins or the JWT TTL elapses (7 days), only cookies will be in use.
+- **Sprint 14 retention sweep**: kicks in nightly. If you accidentally delete a doc-related `competition_date` in the past, the next 02:00 run will soft-delete those docs. Use `restore()` from `query-helpers.ts` to recover.
+- **`/uploads/...` static path is still served unsigned** for backward-compat in dev. Production nginx config should remove or block this path so signed URLs are the only access path.
+- **Cookie auth single-session caveat**: one browser → one session. Admins who used to keep admin + organizer tabs open simultaneously must now use two browsers or two profiles.
+- **`docs/PROJECT_PLAN.md` and `docs/PROJECT_PLAN.docx`** are out-of-sync with this CLAUDE.md after Sprint 14–16. Treat CLAUDE.md as the source of truth; update PROJECT_PLAN later if needed for stakeholder reporting.
 
 ---
 
