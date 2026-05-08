@@ -28,6 +28,8 @@ import regionsRoutes from "./routes/regions.routes";
 import favoritesRoutes from "./routes/favorites.routes";
 import historicalRoutes from "./routes/historical.routes";
 import { initializeCronJobs } from "./services/cron.service";
+import { verifySignedUrlToken } from "./services/storage.service";
+import fs from "fs";
 
 const app = express();
 
@@ -35,7 +37,33 @@ app.use(cors());
 app.use(express.json());
 
 // Serve uploaded files — /uploads/<userId>/<filename>
+// NOTE: This unsigned static path stays for backward-compat in dev. Production
+// should rely on /uploads-signed/:token below (or S3 presigned URLs) and remove
+// this static handler before launch.
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+
+// Signed-URL endpoint for local-disk dev mode. Validates a JWT token whose
+// payload is the file path; tokens expire after 15 min by default.
+app.get("/uploads-signed/:token", (req, res) => {
+  const filePath = verifySignedUrlToken(req.params.token);
+  if (!filePath) {
+    res.status(403).json({ message: "Signed URL expired or invalid" });
+    return;
+  }
+  // Path comes from a signed token we generated, but be defensive: only allow
+  // files under the uploads/ directory and reject any traversal artefacts.
+  const abs = path.resolve(path.join(process.cwd(), filePath));
+  const root = path.resolve(path.join(process.cwd(), "uploads"));
+  if (!abs.startsWith(root + path.sep)) {
+    res.status(400).json({ message: "Invalid path" });
+    return;
+  }
+  if (!fs.existsSync(abs)) {
+    res.status(404).json({ message: "File not found" });
+    return;
+  }
+  res.sendFile(abs);
+});
 
 // Health check
 app.get("/api/health", (_req, res) => {
@@ -67,7 +95,7 @@ Sentry.setupExpressErrorHandler(app);
 app.use(errorHandler);
 
 app.listen(env.PORT, () => {
-  console.log(`Kompetix API running on port ${env.PORT}`);
+  console.log(`Competzy API running on port ${env.PORT}`);
 
   // Initialize Sprint 4 cron jobs
   initializeCronJobs();

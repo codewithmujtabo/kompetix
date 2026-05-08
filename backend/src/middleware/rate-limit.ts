@@ -47,6 +47,25 @@ export const authLimiter = rateLimit({
 });
 
 /**
+ * Bulk upload limiter: 3 uploads per hour per user.
+ * Protects against accidental or malicious large CSV floods that strain the cron processor.
+ */
+export const bulkUploadLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { keyGeneratorIpFallback: false },
+  message: { message: "Too many bulk uploads. Please wait an hour before retrying." },
+  keyGenerator: (req) => {
+    // Prefer authenticated user ID (set by authMiddleware) for fair limiting per account.
+    const userId = (req as any).userId;
+    if (userId) return `user:${userId}`;
+    return ipKeyGenerator(req.ip ?? "");
+  },
+});
+
+/**
  * PIN verify limiter: 5 attempts per 15 minutes per IP + email.
  * Protects against brute-force PIN guessing for parent invitations.
  */

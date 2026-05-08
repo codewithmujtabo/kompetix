@@ -10,6 +10,7 @@
 
 import fs from "fs";
 import path from "path";
+import jwt from "jsonwebtoken";
 import { env } from "../config/env";
 
 // ── S3 client (lazy-initialised) ─────────────────────────────────────────────
@@ -52,6 +53,43 @@ export async function storeFile(
     return storeS3(userId, buffer, filename, mimeType);
   }
   return storeLocal(userId, buffer, filename);
+}
+
+/**
+ * Generate a signed time-limited URL for a stored file.
+ * - S3/MinIO: presigned GET URL (15 min default expiry)
+ * - Local disk: short-lived JWT-token URL served by /uploads-signed/:token in index.ts
+ *
+ * Always prefer this over returning raw fileUrl to clients — sensitive documents
+ * (KTP, payment proofs, student cards) must not be guessable or shareable.
+ */
+export async function getSignedUrl(fileUrl: string, expiresInSec: number = 900): Promise<string> {
+  if (isS3Configured() && fileUrl.includes(`/${env.MINIO_BUCKET}/`)) {
+    const { GetObjectCommand } = require("@aws-sdk/client-s3");
+    const { getSignedUrl: s3GetSignedUrl } = require("@aws-sdk/s3-request-presigner");
+    const marker = `/${env.MINIO_BUCKET}/`;
+    const idx = fileUrl.indexOf(marker);
+    const key = fileUrl.slice(idx + marker.length);
+    const cmd = new GetObjectCommand({ Bucket: env.MINIO_BUCKET, Key: key });
+    return await s3GetSignedUrl(getS3Client(), cmd, { expiresIn: expiresInSec });
+  }
+  // Local-disk dev: emit a JWT-token URL. The /uploads-signed/:token endpoint
+  // in index.ts validates the token and streams the file.
+  const token = jwt.sign({ p: fileUrl }, env.JWT_SECRET, { expiresIn: expiresInSec });
+  return `/uploads-signed/${token}`;
+}
+
+/**
+ * Verify a signed-URL JWT token (local-disk dev mode) and return the file path,
+ * or null if the token is invalid/expired.
+ */
+export function verifySignedUrlToken(token: string): string | null {
+  try {
+    const payload = jwt.verify(token, env.JWT_SECRET) as { p?: string };
+    return payload.p ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**

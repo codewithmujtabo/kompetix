@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { pool } from "../config/database";
 import { authMiddleware } from "../middleware/auth";
+import { bulkUploadLimiter } from "../middleware/rate-limit";
 import multer from "multer";
 import { parseAndValidateCsv } from "../services/bulk-processor.service";
 
@@ -32,7 +33,7 @@ function teacherOrAdminOnly(req: Request, res: Response, next: Function) {
 
 // ── POST /api/bulk-registration/upload ───────────────────────────────────
 // Upload CSV file for bulk registration
-router.post("/upload", authMiddleware, teacherOrAdminOnly, upload.single('file'), async (req: Request, res: Response) => {
+router.post("/upload", authMiddleware, bulkUploadLimiter, teacherOrAdminOnly, upload.single('file'), async (req: Request, res: Response) => {
   try {
     const uploaderId = req.userId!;
 

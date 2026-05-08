@@ -30,6 +30,15 @@ const ROLES = [
     color: '#22c55e',
     disabled: false,
   },
+  {
+    key: 'country_rep',
+    icon: '🏫',
+    label: 'Country Rep',
+    desc: 'Register and manage students,teams',
+    href: '/school-login',
+    color: '#22c55e',
+    disabled: false,
+  },
 ];
 
 export default function RoleSelector() {
@@ -45,7 +54,7 @@ export default function RoleSelector() {
     }}>
       <div style={{ textAlign: 'center', marginBottom: 52 }}>
         <h1 style={{ fontFamily: 'var(--ff-display)', fontSize: 32, fontWeight: 400, marginBottom: 6 }}>
-          Kompetix
+          Competzy
         </h1>
         <p style={{ color: 'var(--text-3)', fontFamily: 'var(--ff-mono)', fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase' }}>
           Web Portal
@@ -130,6 +139,21 @@ export default function RoleSelector() {
           );
         })}
       </div>
+
+      <footer style={{
+        marginTop: 64,
+        display: 'flex',
+        gap: 18,
+        fontSize: 12,
+        color: 'var(--text-3)',
+        fontFamily: 'var(--ff-mono)',
+        textTransform: 'uppercase',
+        letterSpacing: '.08em',
+      }}>
+        <Link href="/privacy" style={{ color: 'inherit', textDecoration: 'none' }}>Privacy</Link>
+        <Link href="/terms"   style={{ color: 'inherit', textDecoration: 'none' }}>Terms</Link>
+        <a href="mailto:hello@competzy.com" style={{ color: 'inherit', textDecoration: 'none' }}>Contact</a>
+      </footer>
     </div>
   );
 }

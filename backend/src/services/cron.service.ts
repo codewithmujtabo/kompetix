@@ -381,6 +381,52 @@ export function scheduleBulkJobProcessor() {
 }
 
 /**
+ * Retention policy enforcement (UU PDP Pasal 16).
+ *
+ * Daily at 02:00 local time:
+ *   • Documents whose competition ended >1 year ago → soft-delete.
+ *   • Audit log rows older than 5 years → hard-delete (legal retention floor met).
+ *   • Notifications older than 1 year that have been read → hard-delete.
+ *
+ * Soft-deleted documents are still recoverable via restore() within ~90 days,
+ * after which a follow-up sweep can hard-delete them. Adjust the cutoff to fit
+ * organisational policy.
+ */
+export function scheduleRetentionEnforcement() {
+  cron.schedule("0 2 * * *", async () => {
+    try {
+      const docs = await pool.query(
+        `UPDATE documents d
+            SET deleted_at = now()
+          FROM registrations r
+          JOIN competitions c ON c.id = r.comp_id
+         WHERE r.user_id = d.user_id
+           AND d.deleted_at IS NULL
+           AND c.competition_date IS NOT NULL
+           AND c.competition_date < now() - INTERVAL '1 year'`
+      );
+      const audits = await pool.query(
+        `DELETE FROM audit_log WHERE created_at < now() - INTERVAL '5 years'`
+      );
+      const notifs = await pool.query(
+        `DELETE FROM notifications
+          WHERE read = TRUE
+            AND created_at < now() - INTERVAL '1 year'`
+      );
+      console.log(
+        `[Cron] Retention sweep: ${docs.rowCount ?? 0} docs soft-deleted, ` +
+        `${audits.rowCount ?? 0} audit rows purged, ${notifs.rowCount ?? 0} old notifications purged`
+      );
+    } catch (error: any) {
+      // Use a defensive .message extract because some queries fail before the column exists in older DBs.
+      console.error("[Cron] Retention enforcement failed:", error.message);
+    }
+  });
+
+  console.log("[Cron] Retention enforcement scheduled (daily at 02:00)");
+}
+
+/**
  * Initialize all cron jobs
  */
 export function initializeCronJobs() {
@@ -389,5 +435,6 @@ export function initializeCronJobs() {
   scheduleNotificationSender();
   scheduleDeadlineUrgencyReminders();
   scheduleBulkJobProcessor();
+  scheduleRetentionEnforcement();
   console.log("[Cron] All cron jobs initialized");
 }

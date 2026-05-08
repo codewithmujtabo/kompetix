@@ -59,6 +59,23 @@ router.post("/webhook", async (req: Request, res: Response) => {
       return;
     }
 
+    // ── Idempotency: dedupe by (provider, order_id, signature_key) ─────────
+    // Midtrans retries on non-2xx and can also fire duplicate events; without
+    // this check we double-process settlements/expiries and corrupt state.
+    const dedup = await pool.query(
+      `INSERT INTO payment_webhook_events
+         (provider, order_id, signature_key, transaction_status, raw_payload)
+       VALUES ('midtrans', $1, $2, $3, $4)
+       ON CONFLICT (provider, order_id, signature_key) DO NOTHING
+       RETURNING id`,
+      [order_id, signature_key, transaction_status ?? null, req.body]
+    );
+    if (dedup.rows.length === 0) {
+      console.log(`Midtrans webhook: duplicate event ignored (order=${order_id} status=${transaction_status})`);
+      res.json({ message: "OK (duplicate)" });
+      return;
+    }
+
     // ── Look up the payment record ─────────────────────────────────────────
     const paymentResult = await pool.query(
       `SELECT id, registration_id FROM payments WHERE order_id = $1 LIMIT 1`,
@@ -159,12 +176,26 @@ router.use(authMiddleware);
 // ── POST /api/payments/snap ───────────────────────────────────────────────────
 router.post("/snap", async (req: Request, res: Response) => {
   try {
-    const { registrationId } = req.body;
+    const { registrationId, payerKind, payerUserId } = req.body as {
+      registrationId?: string;
+      payerKind?: "self" | "parent" | "school" | "sponsor";
+      payerUserId?: string;
+    };
 
     if (!registrationId) {
       res.status(400).json({ message: "registrationId is required" });
       return;
     }
+
+    // Whitelist payer kinds. Default to "self".
+    const resolvedPayerKind: "self" | "parent" | "school" | "sponsor" =
+      payerKind && ["self", "parent", "school", "sponsor"].includes(payerKind)
+        ? payerKind
+        : "self";
+
+    // For "self", payer = registrant. For other kinds, fall back to the requester
+    // (parent/school admin paying on behalf) unless an explicit payerUserId is given.
+    const resolvedPayerUserId = payerUserId ?? req.userId ?? null;
 
     const allowed = await canAccessRegistration(req.userId!, registrationId);
     if (!allowed) {
@@ -241,10 +272,10 @@ router.post("/snap", async (req: Request, res: Response) => {
 
     const paymentResult = await pool.query(
       `INSERT INTO payments
-         (registration_id, user_id, amount, payment_status, snap_token, order_id)
-       VALUES ($1, $2, $3, 'pending', $4, $5)
+         (registration_id, user_id, amount, payment_status, snap_token, order_id, payer_user_id, payer_kind)
+       VALUES ($1, $2, $3, 'pending', $4, $5, $6, $7)
        RETURNING id`,
-      [registrationId, req.userId, row.fee, snapToken, orderId]
+      [registrationId, req.userId, row.fee, snapToken, orderId, resolvedPayerUserId, resolvedPayerKind]
     );
 
     res.status(201).json({

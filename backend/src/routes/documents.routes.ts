@@ -3,7 +3,7 @@ import multer from "multer";
 import path from "path";
 import { pool } from "../config/database";
 import { authMiddleware } from "../middleware/auth";
-import { storeFile, deleteFile } from "../services/storage.service";
+import { storeFile, deleteFile, getSignedUrl } from "../services/storage.service";
 
 const router = Router();
 router.use(authMiddleware);
@@ -81,16 +81,18 @@ router.get("/", async (req: Request, res: Response) => {
       [req.userId]
     );
 
-    res.json(
-      result.rows.map((d) => ({
+    // Return signed URLs (15-min expiry) so listings are not directly shareable.
+    const signed = await Promise.all(
+      result.rows.map(async (d) => ({
         id:         d.id,
         docType:    d.doc_type,
         fileName:   d.file_name,
         fileSize:   d.file_size,
-        fileUrl:    d.file_url,
+        fileUrl:    d.file_url ? await getSignedUrl(d.file_url) : null,
         uploadedAt: d.uploaded_at,
       }))
     );
+    res.json(signed);
   } catch (err) {
     console.error("List documents error:", err);
     res.status(500).json({ message: "Failed to fetch documents" });
