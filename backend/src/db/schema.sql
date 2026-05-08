@@ -1,5 +1,5 @@
 -- ============================================================================
--- KOMPETIX DATABASE SCHEMA (Plain PostgreSQL - No Supabase)
+-- COMPETZY DATABASE SCHEMA (Plain PostgreSQL - No Supabase)
 -- ============================================================================
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";

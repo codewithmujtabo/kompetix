@@ -15,7 +15,7 @@ const coreApi = new midtransClient.CoreApi({
   clientKey: env.MIDTRANS_CLIENT_KEY,
 });
 
-const DEEP_LINK_BASE = "kompetix://payment";
+const DEEP_LINK_BASE = "competzy://payment";
 
 export interface SnapTokenResult {
   snapToken: string;
@@ -24,7 +24,7 @@ export interface SnapTokenResult {
 
 /**
  * Create a Midtrans Snap transaction token for a registration.
- * Callbacks redirect back to the app via the kompetix:// scheme.
+ * Callbacks redirect back to the app via the competzy:// scheme.
  */
 export async function createSnapToken(params: {
   orderId: string;

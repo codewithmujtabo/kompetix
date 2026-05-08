@@ -76,7 +76,7 @@ function SchoolLayoutInner({ children }: { children: React.ReactNode }) {
               🏫
             </div>
             <div>
-              <div style={{ fontFamily: 'var(--ff-display)', fontSize: 14, lineHeight: 1.2 }}>Kompetix</div>
+              <div style={{ fontFamily: 'var(--ff-display)', fontSize: 14, lineHeight: 1.2 }}>Competzy</div>
               <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.1em' }}>
                 {roleLabel}
               </div>

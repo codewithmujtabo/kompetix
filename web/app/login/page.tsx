@@ -38,7 +38,7 @@ export default function Login() {
       <div className="fu" style={{ width: '100%', maxWidth: 380 }}>
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
           <div style={{ width: 48, height: 48, borderRadius: 13, background: 'linear-gradient(135deg,var(--accent),#818cf8)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, marginBottom: 18, boxShadow: '0 0 28px var(--accent-dim)' }}>✦</div>
-          <h1 style={{ fontFamily: 'var(--ff-display)', fontSize: 26, fontWeight: 400, marginBottom: 4 }}>Kompetix</h1>
+          <h1 style={{ fontFamily: 'var(--ff-display)', fontSize: 26, fontWeight: 400, marginBottom: 4 }}>Competzy</h1>
           <p style={{ color: 'var(--text-3)', fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase' }}>Admin Portal</p>
         </div>
         <div className="card" style={{ padding: 28 }}>

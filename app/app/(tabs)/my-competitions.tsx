@@ -209,7 +209,7 @@ export default function MyCompetitionsScreen() {
           </View>
           <View style={styles.cardMain}>
             <Pressable onPress={() => router.push({ pathname: "/(tabs)/competitions/[id]", params: { id: item.id } })}>
-              <Text style={[styles.cardTitle, { textDecorationLine: "underline" }]}>{item.name}</Text>
+              <Text style={[styles.cardTitle, {}]}>{item.name}</Text>
             </Pressable>
             <Text style={styles.cardMeta}>
               {item.organizer_name} • {item.category}
@@ -257,7 +257,7 @@ export default function MyCompetitionsScreen() {
           </View>
           <View style={styles.cardMain}>
             <Pressable onPress={() => router.push({ pathname: "/(tabs)/competitions/[id]", params: { id: item.compId } })}>
-              <Text style={[styles.cardTitle, { textDecorationLine: "underline" }]}>{item.competitionName}</Text>
+              <Text style={[styles.cardTitle, {}]}>{item.competitionName}</Text>
             </Pressable>
             <Text style={styles.cardMeta}>{formatCurrency(item.fee)}</Text>
             <StatusBadge status={item.status} />
@@ -329,7 +329,7 @@ export default function MyCompetitionsScreen() {
           </View>
           <View style={styles.cardMain}>
             <Pressable onPress={() => router.push({ pathname: "/(tabs)/competitions/[id]", params: { id: item.compId } })}>
-              <Text style={[styles.cardTitle, { textDecorationLine: "underline" }]}>{item.competitionName}</Text>
+              <Text style={[styles.cardTitle, {}]}>{item.competitionName}</Text>
             </Pressable>
             <Text style={styles.cardMeta}>{formatCurrency(item.fee)}</Text>
             <StatusBadge status={item.status} />

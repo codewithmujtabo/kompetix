@@ -4,7 +4,15 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: `${process.env.BACKEND_URL ?? 'http://localhost:4000'}/api/:path*`,
+        destination: `${process.env.BACKEND_URL ?? 'http://localhost:3000'}/api/:path*`,
+      },
+    ];
+  },
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [{ key: 'ngrok-skip-browser-warning', value: '1' }],
       },
     ];
   },

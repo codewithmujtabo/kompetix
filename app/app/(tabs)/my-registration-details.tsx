@@ -67,7 +67,7 @@ export default function MyRegistrationDetailsScreen() {
   if (isError || !registration || !competition) {
     return (
       <View style={[styles.center, { paddingTop: insets.top }]}>
-        <Text style={styles.errorTitle}>Failed to load competition hub</Text>
+        <Text style={styles.errorTitle}>Failed to load details</Text>
         <Pressable style={styles.primaryButton} onPress={() => refetch()}>
           <Text style={styles.primaryButtonText}>Retry</Text>
         </Pressable>
@@ -82,7 +82,7 @@ export default function MyRegistrationDetailsScreen() {
           <IconSymbol name="chevron.left" size={24} color="#0F172A" />
         </Pressable>
         <Text style={styles.headerTitle} numberOfLines={1}>
-          Competition Hub
+          Details
         </Text>
         <View style={{ width: 24 }} />
       </View>

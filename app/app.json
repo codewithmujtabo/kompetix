@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Kompetix",
-    "slug": "kompetix",
+    "name": "Competzy",
+    "slug": "competzy",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "kompetix",
+    "scheme": "competzy",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "ios": {

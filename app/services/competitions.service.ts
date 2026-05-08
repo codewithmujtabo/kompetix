@@ -93,7 +93,7 @@ export async function trackView(compId: string, duration: number): Promise<void>
   try {
     await apiRequest(`/competitions/${compId}/view`, {
       method: "POST",
-      body: JSON.stringify({ duration }),
+      body: { duration },
       auth: true,
     });
   } catch (error) {

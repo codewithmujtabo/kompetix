@@ -1,5 +1,5 @@
 {
-  "name": "kompetix",
+  "name": "competzy",
   "private": true,
   "scripts": {
     "backend": "cd backend && npm run dev",

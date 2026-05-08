@@ -15,7 +15,7 @@ export default function WebPortalRedirectScreen() {
       </Text>
       <TouchableOpacity
         style={styles.button}
-        onPress={() => Linking.openURL("https://kompetix.id/admin")}
+        onPress={() => Linking.openURL("https://competzy.id/admin")}
         activeOpacity={0.8}
       >
         <Text style={styles.buttonText}>Open Web Portal</Text>

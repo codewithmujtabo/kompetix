@@ -1,4 +1,4 @@
-# Kompetix — Project Plan & Task Board
+# Competzy — Project Plan & Task Board
 **Version:** 1.0 · **Last updated:** May 2, 2026
 **Instructions for Google Docs:** Copy each section below into a separate Tab in your Google Doc (General / Your Tasks / Teammate Tasks). In the task tables, edit the Status column as you work — change "☐ To Do" → "⏳ In Progress" → "✅ Done".
 
@@ -9,11 +9,11 @@
 
 ---
 
-## What is Kompetix?
+## What is Competzy?
 
-Kompetix is Indonesia's unified K-12 academic competition platform. It replaces a fragmented ecosystem where every competition (EMC, ISPO, OSEBI, Komodo, Owlypia, etc.) had its own separate website, login, and payment system. Students had to manage dozens of accounts across different platforms.
+Competzy is Indonesia's unified K-12 academic competition platform. It replaces a fragmented ecosystem where every competition (EMC, ISPO, OSEBI, Komodo, Owlypia, etc.) had its own separate website, login, and payment system. Students had to manage dozens of accounts across different platforms.
 
-Kompetix brings everything into one place:
+Competzy brings everything into one place:
 - **Students** discover and register for competitions, pay, and track their results
 - **Parents** monitor their children's registrations and pay on their behalf
 - **Organizers** create competitions, review participants, and manage payouts
@@ -26,7 +26,7 @@ Kompetix brings everything into one place:
 
 ## Historical Data (from Excel database)
 
-This is real competition data from previous years that will be imported into Kompetix so past participants can claim their history.
+This is real competition data from previous years that will be imported into Competzy so past participants can claim their history.
 
 | Dataset | Count | Notes |
 |---|---|---|
@@ -65,7 +65,7 @@ This is real competition data from previous years that will be imported into Kom
 ## Platform Architecture
 
 ```
-kompetix/
+competzy/
 ├── app/        React Native (Expo) — mobile app
 │               Roles: Student, Parent, Teacher (light)
 │
@@ -177,8 +177,8 @@ Write the API contracts for any endpoint your teammate needs, then build them. Y
 | 5 | Build backend organizer routes | Your teammate builds the organizer portal UI. You build the API. See the "API Contract" section below for the exact endpoints needed. | `backend/src/routes/organizer.routes.ts` (new file) | 🔴 Critical | ☐ To Do |
 | 6 | Add `organizer` role to backend auth | Update the role enum in users table to include `organizer`. Update `POST /api/auth/signup` to handle organizer role data (org name, logo, PIC, bank account). Add `organizerOnly` middleware. | `backend/migrations/` (new), `backend/src/middleware/`, `backend/src/routes/auth.routes.ts` | 🔴 Critical | ☐ To Do |
 | 7 | Post-payment JWT redirect endpoint | After Midtrans `settlement` webhook fires for internal competitions (EMC, ISPO, OSEBI, Komodo): generate a signed JWT and include a redirect URL in the webhook response. JWT payload: `{ registration_id, competition_id, student_name, payment_status: 'paid', paid_at, expires_at (24h) }`. | `backend/src/routes/payments.routes.ts`, `backend/src/services/midtrans.service.ts` | 🔴 Critical | ☐ To Do |
-| 8 | Rename app branding from "Beyond Classroom" to "Kompetix" | Update `app.json` (name, slug, scheme), splash screen text, and any hardcoded strings in the app. | `app/app.json`, any screen with "Beyond Classroom" text | 🔴 Critical | ☐ To Do |
-| 9 | Remove admin screens from mobile app | Admin work moves to the web. Remove admin tabs/screens from the mobile app's `_layout.tsx` tab routing. Admin users on mobile should see a message: "Use the web portal at admin.kompetix.com". | `app/app/(tabs)/_layout.tsx`, `app/app/(tabs)/admin-*.tsx` | 🔴 Critical | ☐ To Do |
+| 8 | Rebrand app: "Beyond Classroom" → "Kompetix" → "Competzy" (final, May 8, 2026) | Update `app.json` (name, slug, scheme), splash screen text, and any hardcoded strings in the app. | `app/app.json`, any screen with prior brand text | 🔴 Critical | ✅ Done |
+| 9 | Remove admin screens from mobile app | Admin work moves to the web. Remove admin tabs/screens from the mobile app's `_layout.tsx` tab routing. Admin users on mobile should see a message: "Use the web portal at admin.competzy.com". | `app/app/(tabs)/_layout.tsx`, `app/app/(tabs)/admin-*.tsx` | 🔴 Critical | ☐ To Do |
 | 10 | Mobile: Show registration number on cards | After adding `registration_number` to backend, update the mobile registration list and detail screens to display it prominently (e.g. `KMP-2026-00001`). | `app/app/(tabs)/my-competitions.tsx`, `app/app/(tabs)/my-registration-details.tsx` | 🔴 Critical | ☐ To Do |
 
 ---
@@ -261,12 +261,12 @@ These are the backend endpoints your teammate needs for the Organizer Portal. Bu
 
 ```bash
 # Start web in dev mode
-cd kompetix/web && npm run dev
+cd competzy/web && npm run dev
 # Runs on http://localhost:3000 (Next.js)
 # Proxies /api/* to http://localhost:3000 (backend)
 
 # Backend must also be running:
-cd kompetix/backend && npm run dev
+cd competzy/backend && npm run dev
 # Runs on http://localhost:3000
 
 # ⚠️ Web runs on port 3001 by default when backend is on 3000
@@ -298,9 +298,9 @@ cd kompetix/backend && npm run dev
 | 10 | Build Organizer Portal — Edit Competition | Same form as create but pre-filled. Fields that are locked after first registration (name, dates, fee) show a warning: "Cannot edit — students have registered." | `web/app/(organizer)/competitions/[id]/edit/page.tsx` (new) | 🔴 Critical | ☐ To Do |
 | 11 | Build Organizer Portal — Participant List | Page: `/organizer/competitions/[id]/participants`. Table: student name, NISN, school, grade, payment status, submission date. Filter by status. Search by name. Approve/Reject buttons inline. Export CSV button. | `web/app/(organizer)/competitions/[id]/participants/page.tsx` (new) | 🔴 Critical | ☐ To Do |
 | 12 | Build Organizer Portal — Participant Detail | Slide-in panel or modal: full student profile snapshot, attached documents (inline PDF/image viewer), payment receipt, approve/reject with reason form. | Component in participant list page | 🔴 Critical | ☐ To Do |
-| 13 | Build Organizer Portal — Revenue Dashboard | Page: `/organizer/revenue`. Cards: total collected, Kompetix fee (6%), net payout. Table per competition: name, registrations, amount, payout date. | `web/app/(organizer)/revenue/page.tsx` (new) | 🔴 Critical | ☐ To Do |
-| 14 | Set up subdomain routing (organizer.kompetix.com) | In `next.config.ts`, add middleware to route organizer subdomain requests to `/(organizer)` routes and admin subdomain to `/(dashboard)` routes. For local dev: use different ports or path-based routing. | `web/next.config.ts`, `web/middleware.ts` (new) | 🔴 Critical | ☐ To Do |
-| 15 | Deploy web to production | Set up deployment on your VPS (or Vercel). Configure `BACKEND_URL` env var to point to production backend. Set up SSL for subdomains: `kompetix.com`, `organizer.kompetix.com`, `admin.kompetix.com`. | `web/.env.production` (new), deployment config | 🔴 Critical | ☐ To Do |
+| 13 | Build Organizer Portal — Revenue Dashboard | Page: `/organizer/revenue`. Cards: total collected, Competzy fee (6%), net payout. Table per competition: name, registrations, amount, payout date. | `web/app/(organizer)/revenue/page.tsx` (new) | 🔴 Critical | ☐ To Do |
+| 14 | Set up subdomain routing (organizer.competzy.com) | In `next.config.ts`, add middleware to route organizer subdomain requests to `/(organizer)` routes and admin subdomain to `/(dashboard)` routes. For local dev: use different ports or path-based routing. | `web/next.config.ts`, `web/middleware.ts` (new) | 🔴 Critical | ☐ To Do |
+| 15 | Deploy web to production | Set up deployment on your VPS (or Vercel). Configure `BACKEND_URL` env var to point to production backend. Set up SSL for subdomains: `competzy.com`, `organizer.competzy.com`, `admin.competzy.com`. | `web/.env.production` (new), deployment config | 🔴 Critical | ☐ To Do |
 
 ---
 
@@ -313,7 +313,7 @@ cd kompetix/backend && npm run dev
 | 18 | Admin: User detail page | Clicking a user in the Users table opens a detail panel: name, email, phone, role, city, registration history, linked parent/student accounts. | `web/app/(dashboard)/users/[id]/page.tsx` (new) | 🟠 High | ☐ To Do |
 | 19 | Organizer: Onboarding flow | Before accessing the dashboard, a new organizer must complete: organization name, logo upload, PIC name, contact email/phone, bank account details, accept platform terms. Gate dashboard behind this completion check. | `web/app/(organizer)/onboarding/page.tsx` (new) | 🟠 High | ☐ To Do |
 | 20 | Organizer: Bulk approve participants | On the participant list: "Select All (Paid + Complete)" checkbox → "Approve X registrations" button → confirmation dialog showing count → bulk approval. Call a batch approve endpoint (ask partner to add it). | Participant list page | 🟠 High | ☐ To Do |
-| 21 | Mobile app banner for web | For features that are web-only (bulk upload, school management), show a banner in the mobile app: "This feature is available on kompetix.com" with a link. Don't build these on mobile. | Various screens in `app/` | 🟠 High | ☐ To Do |
+| 21 | Mobile app banner for web | For features that are web-only (bulk upload, school management), show a banner in the mobile app: "This feature is available on competzy.com" with a link. Don't build these on mobile. | Various screens in `app/` | 🟠 High | ☐ To Do |
 
 ---
 
@@ -334,8 +334,8 @@ cd kompetix/backend && npm run dev
 
 | # | Task | Details | File(s) | Priority | Status |
 |---|---|---|---|---|---|
-| 28 | Country Rep Portal | New portal at `rep.kompetix.com`. Rep sees all schools in their region, active registrations, regional payment status. Can invite new schools, generate consolidated invoices. | `web/app/(rep)/` (new) | 🟢 Low | ☐ To Do |
-| 29 | Referral Portal | New portal at `referral.kompetix.com`. Affiliate marketer generates tracked links per competition, sees clicks and conversions, requests payouts when threshold reached. | `web/app/(referral)/` (new) | 🟢 Low | ☐ To Do |
+| 28 | Country Rep Portal | New portal at `rep.competzy.com`. Rep sees all schools in their region, active registrations, regional payment status. Can invite new schools, generate consolidated invoices. | `web/app/(rep)/` (new) | 🟢 Low | ☐ To Do |
+| 29 | Referral Portal | New portal at `referral.competzy.com`. Affiliate marketer generates tracked links per competition, sees clicks and conversions, requests payouts when threshold reached. | `web/app/(referral)/` (new) | 🟢 Low | ☐ To Do |
 | 30 | Referral link tracking (cookie) | On first visit to a competition page via `?ref=CODE`: set a 30-day cookie with the referral code. On registration submit: include `referral_code` in the request body. Partner adds `referral_code` column to registrations. | `web/middleware.ts`, competition detail page | 🟢 Low | ☐ To Do |
 
 ---
@@ -350,7 +350,7 @@ At the start of each week, align on:
 
 **Shared API Base URL:**
 - Development: `http://localhost:3000`
-- Production: `https://api.kompetix.com` (or your VPS URL)
+- Production: `https://api.competzy.com` (or your VPS URL)
 
 ---
 

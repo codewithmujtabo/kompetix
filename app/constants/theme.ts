@@ -1,5 +1,5 @@
 /**
- * App color palette for Kompetix.
+ * App color palette for Competzy.
  * Import `Colors` anywhere you need a color — never hardcode hex values.
  */
 

@@ -265,7 +265,7 @@ export default function RegisterScreen() {
 
         Alert.alert(
           "Success",
-          "Account created! Welcome to Kompetix",
+          "Account created! Welcome to Competzy",
         );
 
         if (user?.id) {
@@ -355,7 +355,7 @@ export default function RegisterScreen() {
               }
             >
               Select how you'll use
-              Kompetix
+              Competzy
             </Text>
           </View>
 
@@ -488,7 +488,7 @@ export default function RegisterScreen() {
               • Display relevant competitions for you{"\n"}
               • Process competition registrations & payments{"\n"}
               • Send important notifications related to competitions{"\n"}
-              • Improve the quality of Kompetix services
+              • Improve the quality of Competzy services
             </Text>
 
             <Text style={[styles.consentTitle, { marginTop: 16 }]}>Data security</Text>
@@ -511,11 +511,11 @@ export default function RegisterScreen() {
               I have read and agree to the{" "}
               <Text
                 style={{ color: Brand.primary, textDecorationLine: "underline" }}
-                onPress={() => Linking.openURL("https://kompetix.id/privacy")}
+                onPress={() => Linking.openURL("https://competzy.id/privacy")}
               >
                 Privacy Policy
               </Text>{" "}
-              of Kompetix.
+              of Competzy.
             </Text>
           </TouchableOpacity>
         </ScrollView>

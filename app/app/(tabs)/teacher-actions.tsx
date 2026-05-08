@@ -80,13 +80,13 @@ export default function TeacherActionsScreen() {
         {/* Web portal banner */}
         <TouchableOpacity
           style={styles.webPortalBanner}
-          onPress={() => Linking.openURL("https://kompetix.id/teacher")}
+          onPress={() => Linking.openURL("https://competzy.id/teacher")}
           activeOpacity={0.8}
         >
           <View style={styles.webPortalBannerContent}>
             <Text style={styles.webPortalBannerTitle}>Advanced reports on the web portal</Text>
             <Text style={styles.webPortalBannerBody}>
-              Full analytics and detailed reports are available at kompetix.id/teacher
+              Full analytics and detailed reports are available at competzy.id/teacher
             </Text>
           </View>
           <Text style={styles.webPortalBannerArrow}>›</Text>

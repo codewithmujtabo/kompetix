@@ -22,7 +22,7 @@ export const env = {
   SMTP_PORT: parseInt(process.env.SMTP_PORT || "587", 10),
   SMTP_USER: process.env.SMTP_USER || "",
   SMTP_PASS: process.env.SMTP_PASS || "",
-  SMTP_FROM: process.env.SMTP_FROM || "Kompetix <noreply@kompetix.id>",
+  SMTP_FROM: process.env.SMTP_FROM || "Competzy <noreply@competzy.id>",
   OTP_EXPIRY_MINUTES: parseInt(process.env.OTP_EXPIRY_MINUTES || "10", 10),
   TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID || "",
   TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN || "",
@@ -35,6 +35,6 @@ export const env = {
   MINIO_ENDPOINT: process.env.MINIO_ENDPOINT || "",       // e.g. http://localhost:9000
   MINIO_ACCESS_KEY: process.env.MINIO_ACCESS_KEY || "",
   MINIO_SECRET_KEY: process.env.MINIO_SECRET_KEY || "",
-  MINIO_BUCKET: process.env.MINIO_BUCKET || "kompetix",
+  MINIO_BUCKET: process.env.MINIO_BUCKET || "competzy",
   MINIO_PUBLIC_URL: process.env.MINIO_PUBLIC_URL || "",   // public base URL for object URLs
 };

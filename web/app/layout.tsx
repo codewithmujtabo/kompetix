@@ -4,8 +4,8 @@ import { ThemeProvider } from '@/lib/theme/context';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Kompetix Admin',
-  description: 'Kompetix Admin Panel',
+  title: 'Competzy Admin',
+  description: 'Competzy Admin Panel',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

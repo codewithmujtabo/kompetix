@@ -49,7 +49,7 @@ export default function SchoolaLogin() {
           }}>
             🏫
           </div>
-          <h1 style={{ fontFamily: 'var(--ff-display)', fontSize: 26, fontWeight: 400, marginBottom: 4 }}>Kompetix</h1>
+          <h1 style={{ fontFamily: 'var(--ff-display)', fontSize: 26, fontWeight: 400, marginBottom: 4 }}>Competzy</h1>
           <p style={{ color: 'var(--text-3)', fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase' }}>School Portal</p>
         </div>
         <div className="card" style={{ padding: 28 }}>

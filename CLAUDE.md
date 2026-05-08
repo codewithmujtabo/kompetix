@@ -1,8 +1,8 @@
-# Kompetix — Claude Project Brief
+# Competzy — Claude Project Brief
 
 Indonesia's unified K-12 academic competition platform. Students, parents, teachers, and organizers all in one place. Replaces fragmented per-competition websites (EMC, ISPO, OSEBI, Komodo, Owlypia, etc.).
 
-**GitHub:** https://github.com/codewithmujtabo/kompetix  
+**GitHub:** https://github.com/codewithmujtabo/competzy  
 **Phase 1 deadline:** July 10, 2026  
 **Owner split:** Mujtabo → mobile app (`app/`) + backend (`backend/`). Teammate → web portals (`web/`).
 
@@ -11,7 +11,7 @@ Indonesia's unified K-12 academic competition platform. Students, parents, teach
 ## Monorepo Structure
 
 ```
-kompetix/
+competzy/
 ├── app/          React Native (Expo) — student, parent, teacher (light)
 ├── web/          Next.js 14 App Router — admin, organizer, school, rep, referral portals
 ├── backend/      Express.js 5 + PostgreSQL — shared API for both app and web (port 3000)
@@ -98,7 +98,7 @@ EXPO_PUBLIC_API_URL=http://<MAC_LAN_IP>:3000/api
 - Schema is in `backend/src/db/schema.sql`.
 - Tables: `users`, `students`, `parents`, `teachers`, `competitions`, `competition_rounds`, `registrations`, `payments`, `documents`, `notifications`, `otp_codes`, `invitations`, `parent_student_links`, `teacher_student_links`, `bulk_registration_jobs`, `favorites`, `schools`, `historical_participants`, `school_payment_batches`, `school_payment_batch_items`.
 - Migrations live in `backend/migrations/` as timestamped `.sql` files. Run with `npm run db:migrate`.
-- `DATABASE_URL` format: `postgresql://user:password@localhost:5432/kompetix` (**renamed from `beyond_classroom` on May 6, 2026 — local DB is already renamed**).
+- `DATABASE_URL` format: `postgresql://user:password@localhost:5432/competzy` (renamed `beyond_classroom` → `kompetix` on May 6, 2026; rebranded `kompetix` → `competzy` on May 8, 2026 — **local DB still needs `ALTER DATABASE kompetix RENAME TO competzy;` and a `.env` update**).
 - **Latest migration:** `1746500000000_teacher-student-links.sql` — must be run on VPS.
 - **students table school column:** The column is `school_name TEXT` (not `school`). There is also a `school_id UUID` FK to the `schools` table. Always use `COALESCE(sc.name, s.school_name)` with a `LEFT JOIN schools sc ON s.school_id = sc.id` when you need the school name in queries.
 
@@ -210,10 +210,10 @@ EXPO_PUBLIC_API_URL=http://<MAC_LAN_IP>:3000/api
 
 ---
 
-## Current Task Status (as of May 6, 2026 — Session 3)
+## Current Task Status (as of May 8, 2026 — Session 4)
 
-**Sprints 0–11 fully complete. All backend tasks done.**
-**Bug fixes: teacher DB migration, role-aware profile edit, payment verify endpoint (May 6, 2026 session 3).**
+**Sprints 0–12 fully complete. All backend tasks done.**
+**Latest: full product rebrand `Kompetix` → `Competzy` across app, web, backend, and docs (May 8, 2026 — Sprint 12).**
 
 ### NEXT STEP TO START:
 Build the missing organizer competition CRUD pages (teammate's task):
@@ -226,7 +226,7 @@ Backend organizer routes for create (`POST /api/organizers/competitions`) and up
 **Also pending (VPS, do manually):**
 - **T21** — MinIO Docker on VPS: `docker run -d -p 9000:9000 -p 9001:9001 -e MINIO_ROOT_USER=... -e MINIO_ROOT_PASSWORD=... quay.io/minio/minio server /data --console-address :9001`, then set the 5 `MINIO_*` env vars in `backend/.env`.
 - **Run migrations on VPS:** `npm run db:migrate` to apply `1746500000000_teacher-student-links.sql` (already applied locally).
-- **Rename DB on VPS:** `ALTER DATABASE beyond_classroom RENAME TO kompetix;` then update `DATABASE_URL` in VPS `backend/.env`.
+- **Rename DB locally and on VPS:** `ALTER DATABASE kompetix RENAME TO competzy;` (and on VPS: `ALTER DATABASE beyond_classroom RENAME TO competzy;` if it was never renamed). Then update `DATABASE_URL` in `backend/.env` on each environment.
 - **api.co.id key:** Register at api.co.id to get `API_CO_ID_KEY` for real school search in signup.
 - **Expo project ID:** Run `npx eas init` inside `app/` for production push notifications.
 
@@ -237,7 +237,7 @@ Backend organizer routes for create (`POST /api/organizers/competitions`) and up
 ### SPRINT 0 — Quick Wins ✅ COMPLETE
 | Task | Status | What |
 |---|---|---|
-| T1 | ✅ | Rename app "Beyond Classroom" → "Kompetix" |
+| T1 | ✅ | Rename app "Beyond Classroom" → "Kompetix" → "Competzy" (final rebrand May 8, 2026) |
 | T2 | ✅ | Remove admin screens from mobile — redirect admin users to web portal |
 | T3 | ✅ | Fix bulk processor: check fee, email temp pwd, insert school_name |
 | T4 | ✅ | Fix quota race condition in bulk processor |
@@ -245,7 +245,7 @@ Backend organizer routes for create (`POST /api/organizers/competitions`) and up
 ### SPRINT 1 — Critical Backend Foundations ✅ COMPLETE
 | Task | Status | What |
 |---|---|---|
-| T5 | ✅ | Add `registration_number` column (`KMP-2026-XXXXX`) |
+| T5 | ✅ | Add `registration_number` column (originally `KMP-2026-XXXXX`; rebranded to `CTZ-2026-XXXXX` on May 8, 2026) |
 | T6 | ✅ | Add `profile_snapshot` JSONB column to registrations |
 | T7 | ✅ | Add `organizer` role + `organizers` table + `organizerOnly` middleware |
 
@@ -272,7 +272,7 @@ Backend organizer routes for create (`POST /api/organizers/competitions`) and up
 | Task | Status | What |
 |---|---|---|
 | T15 | ✅ | "Recommended for you" horizontal scroll in competitions screen (was already implemented) |
-| T16 | ✅ | `KMP-2026-XXXXX` badge on My Competitions cards |
+| T16 | ✅ | `CTZ-2026-XXXXX` badge on My Competitions cards (legacy rows show `KMP-2026-XXXXX`) |
 | T17 | ✅ | Profile snapshot section + "Open Competition Platform" redirect button in competition hub |
 | T18 | ✅ | New screen `profile/history.tsx` — My Records tab + Find & Claim tab |
 | T19 | ✅ | Teacher actions: removed in-app bulk CSV, added web portal banner |
@@ -317,6 +317,18 @@ Backend organizer routes for create (`POST /api/organizers/competitions`) and up
 | Teacher sees Discover screen on login | `_layout.tsx` defaulted `userRole` to `"student"` before context loaded → competitions tab became visible → tab navigator landed there. Fix: default to `""` (empty string) so all role-specific tabs stay hidden during load. | `app/app/(tabs)/_layout.tsx` |
 | Teacher redirect safety net | `competitions.tsx` also defaulted to "student" and had no redirect for teachers. Fix: added `useEffect` that redirects teachers to `/(tabs)/teacher-dashboard` and admins to `/(tabs)/web-portal-redirect` when `userRole` resolves. | `app/app/(tabs)/competitions.tsx` |
 | Teacher "monitoring mode" | Removed Bulk Registration and Export Student Data from teacher quick actions. Replaced with monitoring-only tiles: Competitions, View Reports, Deadlines, My Students. Updated web portal banner text to remove bulk registration mention. | `app/app/(tabs)/teacher-actions.tsx` |
+
+### SPRINT 12 — Rebrand Kompetix → Competzy (May 8, 2026 Session 4) ✅ COMPLETE
+| Fix | What | Key files |
+|---|---|---|
+| Display name | All UI strings, emails, push titles, splash text rebranded `Kompetix` → `Competzy` | `web/app/**`, `app/app/**`, `backend/src/services/email.service.ts` |
+| App identity | Expo `name`/`slug`/`scheme` updated; deep-link scheme `kompetix://` → `competzy://`; Midtrans callbacks updated | `app/app.json`, `app/app/(payment)/pay.tsx`, `backend/src/services/midtrans.service.ts` |
+| Package names | npm `name` fields rebranded across root, `app/`, `web/`, `backend/` | `package.json`, `app/package.json`, `web/package.json`, `backend/package.json` |
+| GitHub URL | Updated to `github.com/codewithmujtabo/competzy` (manual repo rename still required on GitHub) | `CLAUDE.md` |
+| Domain references | All `kompetix.id` / `kompetix.com` → `competzy.id` / `competzy.com` | `app/app/(tabs)/teacher-actions.tsx`, `app/app/(tabs)/web-portal-redirect.tsx`, `app/app/(auth)/register.tsx`, `docs/PROJECT_PLAN.md` |
+| DB defaults | `MINIO_BUCKET` default `"kompetix"` → `"competzy"`; `SMTP_FROM` default updated; `DATABASE_URL` example updated | `backend/src/config/env.ts`, `backend/.env.example` |
+| Reg-number prefix | New migration alters default to `CTZ-2026-XXXXX`. Existing `KMP-2026-*` rows untouched. | `backend/migrations/1746800000000_rebrand-registration-prefix-to-CTZ.sql` |
+| On-disk folder | Disk folder renamed `kompetix/` → `competzy/` (May 8, 2026). Folder diagrams and `cd …` examples in docs updated. | n/a |
 
 ### SPRINT 11 — Bug Fixes (May 6, 2026 Session 3) ✅ COMPLETE
 | Fix | What | Key files |
@@ -366,7 +378,9 @@ T21 (MinIO) ──────────────► T22 (storage migration
 - `app/constants/api.ts` and `app/config/api.ts` both exist — app uses `config/api.ts`. The constants one is legacy.
 - Competition `id` column is `TEXT` (not UUID) — changed in migration `1744070500000`. IDs look like `comp_emc_2026_main`.
 - The `students` and `parents` tables have orphaned `parent_school_id` columns (Sprint 7 to drop).
-- DB name renamed to `kompetix` locally (May 6, 2026). VPS still needs: `ALTER DATABASE beyond_classroom RENAME TO kompetix;` + update `backend/.env`.
+- Disk folder renamed `kompetix/` → `competzy/` on May 8, 2026. Reopen any IDE workspace, terminal tab, or Claude Code session that pointed at the old path: `/Users/<you>/Desktop/All/Internship Eduversal/competzy/`.
+- DB rename history: `beyond_classroom` → `kompetix` (May 6, 2026, local only) → `competzy` (May 8, 2026 rebrand). Pending: `ALTER DATABASE kompetix RENAME TO competzy;` on local + VPS, then update `DATABASE_URL` in each environment's `.env`.
+- Registration number prefix rebranded `KMP-2026-XXXXX` → `CTZ-2026-XXXXX` on May 8, 2026 via migration `1746800000000_rebrand-registration-prefix-to-CTZ.sql`. Existing rows keep their `KMP-` numbers; only new rows pick up the new default.
 - There are 3 registrations with status `approved` in the DB (legacy status, pre-T28). These are displayed correctly with a green badge but cannot be acted on via the approval UI. Not a bug — they predate the `pending_approval` flow.
 - `competitions.tsx` defaults `userRole` to `""` (not "student") when user context hasn't loaded. Guard: `useEffect` redirects teachers/admins away. Same change in `_layout.tsx`.
 - `pay.tsx` polling: after browser close (any path), calls `GET /api/payments/verify/:registrationId` up to 6× with 3s gaps. The verify endpoint calls Midtrans Status API and force-updates DB — this is what makes sandbox work without a live webhook. In production the webhook arrives first and verify is a no-op.
