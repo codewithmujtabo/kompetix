@@ -1,37 +1,16 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import { organizerHttp } from '@/lib/api/client';
 import type { AuthUser } from '@/types';
 
-const BASE = '/api';
-
-async function organizerReq<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const t = typeof window !== 'undefined' ? localStorage.getItem('organizer_token') : null;
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(init.headers as Record<string, string> ?? {}),
-  };
-  if (t) headers['Authorization'] = `Bearer ${t}`;
-
-  const res = await fetch(`${BASE}${path}`, { ...init, headers });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
-    throw new Error(body.message ?? `HTTP ${res.status}`);
-  }
-  return res.json() as Promise<T>;
-}
-
-export const organizerHttp = {
-  get:    <T,>(path: string)                => organizerReq<T>(path),
-  post:   <T,>(path: string, body: unknown) => organizerReq<T>(path, { method: 'POST',   body: JSON.stringify(body) }),
-  put:    <T,>(path: string, body: unknown) => organizerReq<T>(path, { method: 'PUT',    body: JSON.stringify(body) }),
-  delete: <T,>(path: string)               => organizerReq<T>(path, { method: 'DELETE' }),
-};
+// Re-export for components that imported organizerHttp from this file historically.
+export { organizerHttp } from '@/lib/api/client';
 
 interface OrganizerCtx {
   user: AuthUser | null;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   loading: boolean;
 }
 
@@ -41,30 +20,31 @@ export function OrganizerProvider({ children }: { children: ReactNode }) {
   const [user, setUser]       = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const hydrate = useCallback(async () => {
     try {
-      const saved = localStorage.getItem('organizer_user');
-      if (saved) setUser(JSON.parse(saved));
-    } catch { /* corrupted storage */ }
-    setLoading(false);
+      const me = await organizerHttp.get<AuthUser>('/auth/me');
+      if (me.role === 'organizer') setUser(me);
+      else setUser(null);
+    } catch {
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  useEffect(() => { void hydrate(); }, [hydrate]);
+
   const login = async (email: string, password: string) => {
-    const res = await organizerReq<{ token: string; user: AuthUser }>('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    });
+    const res = await organizerHttp.post<{ token: string; user: AuthUser }>('/auth/login', { email, password });
     if (res.user.role !== 'organizer') {
+      await organizerHttp.post('/auth/logout', {}).catch(() => {});
       throw new Error('Access denied. Organizer account required.');
     }
-    localStorage.setItem('organizer_token', res.token);
-    localStorage.setItem('organizer_user', JSON.stringify(res.user));
     setUser(res.user);
   };
 
-  const logout = () => {
-    localStorage.removeItem('organizer_token');
-    localStorage.removeItem('organizer_user');
+  const logout = async () => {
+    await organizerHttp.post('/auth/logout', {}).catch(() => {});
     setUser(null);
   };
 

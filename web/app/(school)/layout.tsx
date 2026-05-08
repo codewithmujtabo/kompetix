@@ -51,7 +51,7 @@ function SchoolLayoutInner({ children }: { children: React.ReactNode }) {
     </div>
   );
 
-  const handleLogout = () => { logout(); router.replace('/school-login'); };
+  const handleLogout = async () => { await logout(); router.replace('/school-login'); };
   
   // Выбираем навигацию в зависимости от роли пользователя
   const isAdmin = user.role === 'school_admin';

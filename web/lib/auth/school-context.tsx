@@ -1,19 +1,19 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import type { AuthUser } from '@/types';
 
 const BASE = '/api';
 
+// Cookie auth: every request sends credentials. Tokens are no longer
+// kept anywhere on the client — the httpOnly cookie set by the backend
+// is the entire session.
 async function schoolReq<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const t = typeof window !== 'undefined' ? localStorage.getItem('school_token') : null;
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(init.headers as Record<string, string> ?? {}),
   };
-  if (t) headers['Authorization'] = `Bearer ${t}`;
-
-  const res = await fetch(`${BASE}${path}`, { ...init, headers });
+  const res = await fetch(`${BASE}${path}`, { ...init, headers, credentials: 'include' });
   if (!res.ok) {
     const body = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
     throw new Error(body.message ?? `HTTP ${res.status}`);
@@ -22,25 +22,21 @@ async function schoolReq<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const schoolHttp = {
-  get:    <T,>(path: string) => schoolReq<T>(path),
-  post:   <T,>(path: string, body: unknown) => schoolReq<T>(path, { method: 'POST', body: JSON.stringify(body) }),
-  put:    <T,>(path: string, body: unknown) => schoolReq<T>(path, { method: 'PUT', body: JSON.stringify(body) }),
-  delete: <T,>(path: string) => schoolReq<T>(path, { method: 'DELETE' }),
+  get:    <T,>(path: string)                  => schoolReq<T>(path),
+  post:   <T,>(path: string, body: unknown)   => schoolReq<T>(path, { method: 'POST',   body: JSON.stringify(body) }),
+  put:    <T,>(path: string, body: unknown)   => schoolReq<T>(path, { method: 'PUT',    body: JSON.stringify(body) }),
+  delete: <T,>(path: string)                  => schoolReq<T>(path, { method: 'DELETE' }),
 };
 
+// Used by callers that need the raw Response (e.g. CSV downloads).
 export async function schoolFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  const t = typeof window !== 'undefined' ? localStorage.getItem('school_token') : null;
-  const headers: Record<string, string> = {
-    ...(init.headers as Record<string, string> ?? {}),
-  };
-  if (t) headers['Authorization'] = `Bearer ${t}`;
-  return fetch(`${BASE}${path}`, { ...init, headers });
+  return fetch(`${BASE}${path}`, { ...init, credentials: 'include' });
 }
 
 interface SchoolCtx {
   user: AuthUser | null;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   loading: boolean;
 }
 
@@ -50,33 +46,34 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const hydrate = useCallback(async () => {
     try {
-      const saved = localStorage.getItem('school_user');
-      if (saved) setUser(JSON.parse(saved));
-    } catch { /* corrupted storage */ }
-    setLoading(false);
+      const me = await schoolReq<AuthUser>('/auth/me');
+      if (me.role === 'school_admin' || me.role === 'teacher') setUser(me);
+      else setUser(null);
+    } catch {
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { void hydrate(); }, [hydrate]);
 
   const login = async (email: string, password: string) => {
     const res = await schoolReq<{ token: string; user: AuthUser }>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body:   JSON.stringify({ email, password }),
     });
-    
-    // Разрешаем вход для school_admin и teacher
     if (res.user.role !== 'school_admin' && res.user.role !== 'teacher') {
+      await schoolReq('/auth/logout', { method: 'POST', body: JSON.stringify({}) }).catch(() => {});
       throw new Error('Access denied. School coordinator or teacher account required.');
     }
-    
-    localStorage.setItem('school_token', res.token);
-    localStorage.setItem('school_user', JSON.stringify(res.user));
     setUser(res.user);
   };
 
-  const logout = () => {
-    localStorage.removeItem('school_token');
-    localStorage.removeItem('school_user');
+  const logout = async () => {
+    await schoolReq('/auth/logout', { method: 'POST', body: JSON.stringify({}) }).catch(() => {});
     setUser(null);
   };
 

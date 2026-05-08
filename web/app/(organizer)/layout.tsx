@@ -42,8 +42,8 @@ function OrganizerLayoutInner({ children }: { children: React.ReactNode }) {
     </div>
   );
 
-  const handleLogout = () => { 
-    logout(); 
+  const handleLogout = async () => {
+    await logout();
     router.replace('/organizer-login');
   };
 

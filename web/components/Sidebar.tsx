@@ -60,7 +60,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
           <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 2 }}>{user?.full_name}</div>
           <div style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--ff-mono)', marginBottom: 10 }}>{user?.email}</div>
           <ThemeToggle />
-          <button className="btn btn-ghost" onClick={() => { logout(); router.replace('/login'); }}
+          <button className="btn btn-ghost" onClick={async () => { await logout(); router.replace('/login'); }}
             style={{ width: '100%', justifyContent: 'center', fontSize: 12, padding: '6px' }}>
             Sign out
           </button>

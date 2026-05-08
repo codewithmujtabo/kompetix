@@ -14,6 +14,27 @@ import { otpSendLimiter, otpVerifyLimiter, authLimiter } from "../middleware/rat
 
 const router = Router();
 
+// ── Auth-cookie helpers ───────────────────────────────────────────────────
+// httpOnly + sameSite=lax + secure-in-prod is the OWASP-recommended cookie posture
+// for session tokens. The web reads this; the mobile app continues to use the
+// Authorization: Bearer header so this cookie has no effect on it.
+const COOKIE_NAME = "competzy_token";
+const COOKIE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days, matches JWT_EXPIRES_IN default
+
+function issueAuthCookie(res: Response, token: string) {
+  res.cookie(COOKIE_NAME, token, {
+    httpOnly: true,
+    secure:   env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge:   COOKIE_MAX_AGE_MS,
+    path:     "/",
+  });
+}
+
+function clearAuthCookie(res: Response) {
+  res.clearCookie(COOKIE_NAME, { path: "/" });
+}
+
 // ── T13: Auto-link historical records on login ────────────────────────────
 // Runs once per user (skips if already linked). Matches on email OR phone.
 async function autoLinkHistoricalRecords(userId: string, email: string | null, phone: string | null): Promise<void> {
@@ -172,6 +193,7 @@ router.post("/signup", authLimiter, async (req: Request, res: Response) => {
 
       const token = generateToken(userId);
       const user = await fetchUserWithRole(userId);
+      issueAuthCookie(res, token);
       res.status(201).json({ token, user });
     } catch (err) {
       await client.query("ROLLBACK");
@@ -210,6 +232,7 @@ router.post("/login", authLimiter, async (req: Request, res: Response) => {
 
     const token = generateToken(dbUser.id);
     const user = await fetchUserWithRole(dbUser.id);
+    issueAuthCookie(res, token);
     res.json({ token, user });
   } catch (err) {
     console.error("Login error:", err);
@@ -279,6 +302,7 @@ router.post("/verify-otp", otpVerifyLimiter, async (req: Request, res: Response)
     const userId = userResult.rows[0].id;
     const token = generateToken(userId);
     const user = await fetchUserWithRole(userId);
+    issueAuthCookie(res, token);
     res.json({ token, user });
   } catch (err) {
     console.error("Verify OTP error:", err);
@@ -353,11 +377,20 @@ router.post("/phone/verify-otp", otpVerifyLimiter, async (req: Request, res: Res
     const user = await fetchUserWithRole(userId);
     // T13: Auto-link historical records on phone login
     autoLinkHistoricalRecords(userId, user?.email ?? null, e164);
+    issueAuthCookie(res, token);
     res.json({ token, user });
   } catch (err: any) {
     console.error("Phone verify-otp error:", err);
     res.status(500).json({ message: err.message || "OTP verification failed" });
   }
+});
+
+// ── POST /api/auth/logout ─────────────────────────────────────────────────
+// Clears the httpOnly auth cookie (web). Mobile clients can simply discard
+// their stored token; this endpoint is a no-op for them but always 200s.
+router.post("/logout", (_req: Request, res: Response) => {
+  clearAuthCookie(res);
+  res.json({ message: "Logged out" });
 });
 
 // ── GET /api/auth/me ──────────────────────────────────────────────────────

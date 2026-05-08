@@ -12,13 +12,23 @@ declare global {
 }
 
 export async function authMiddleware(req: Request, res: Response, next: NextFunction): Promise<void> {
+  // Token can come from either:
+  //   • Authorization: Bearer <jwt> header (mobile app via SecureStore)
+  //   • competzy_token httpOnly cookie (web — set on login, sent automatically)
+  // The Bearer header wins if both are present, so a mobile request never falls back to a stale cookie.
+  let token: string | null = null;
   const header = req.headers.authorization;
-  if (!header || !header.startsWith("Bearer ")) {
-    res.status(401).json({ message: "Missing or invalid authorization header" });
+  if (header && header.startsWith("Bearer ")) {
+    token = header.slice(7);
+  } else if ((req as any).cookies?.competzy_token) {
+    token = (req as any).cookies.competzy_token;
+  }
+
+  if (!token) {
+    res.status(401).json({ message: "Not authenticated" });
     return;
   }
 
-  const token = header.slice(7);
   const payload = verifyToken(token);
   if (!payload) {
     res.status(401).json({ message: "Invalid or expired token" });

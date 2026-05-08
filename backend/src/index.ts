@@ -1,6 +1,7 @@
 import * as Sentry from "@sentry/node";
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import path from "path";
 import { env } from "./config/env";
 
@@ -33,7 +34,26 @@ import fs from "fs";
 
 const app = express();
 
-app.use(cors());
+// CORS: allow credentials so the web frontend can send the auth cookie.
+// Origin list reads CORS_ORIGINS (comma-separated) from env, falls back to
+// localhost dev hosts.
+const corsOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:3000,http://localhost:3001")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      // Same-origin (no Origin header — e.g. server-to-server, curl) is allowed.
+      // Mobile app fetches don't send Origin either.
+      if (!origin) return cb(null, true);
+      if (corsOrigins.includes(origin)) return cb(null, true);
+      cb(new Error(`Origin ${origin} not allowed by CORS`));
+    },
+    credentials: true,
+  })
+);
+app.use(cookieParser());
 app.use(express.json());
 
 // Serve uploaded files — /uploads/<userId>/<filename>
