@@ -35,6 +35,7 @@ export default function EditCompetitionPage() {
     requiredDocs: [] as string[],
     imageUrl: '',
     participantInstructions: '',
+    postPaymentRedirectUrl: '',
   });
 
   const [newDoc, setNewDoc] = useState('');
@@ -62,6 +63,7 @@ export default function EditCompetitionPage() {
           requiredDocs: data.requiredDocs || [],
           imageUrl: data.imageUrl || '',
           participantInstructions: data.participantInstructions || '',
+          postPaymentRedirectUrl: data.postPaymentRedirectUrl || '',
         });
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load competition');
@@ -113,6 +115,7 @@ export default function EditCompetitionPage() {
       requiredDocs: form.requiredDocs,
       imageUrl: form.imageUrl || null,
       participantInstructions: form.participantInstructions || null,
+      postPaymentRedirectUrl: form.postPaymentRedirectUrl || null,
       rounds: [],
     };
 
@@ -266,6 +269,19 @@ export default function EditCompetitionPage() {
               <div><label className="label">Poster URL</label><input type="url" className="input" value={form.posterUrl} onChange={(e) => setForm({ ...form, posterUrl: e.target.value })} /></div>
             </div>
             <div><label className="label">Website URL</label><input type="url" className="input" value={form.websiteUrl} onChange={(e) => setForm({ ...form, websiteUrl: e.target.value })} /></div>
+            <div style={{ marginTop: 16 }}>
+              <label className="label">Post-Payment Redirect URL</label>
+              <input
+                type="url"
+                className="input"
+                value={form.postPaymentRedirectUrl}
+                onChange={(e) => setForm({ ...form, postPaymentRedirectUrl: e.target.value })}
+                placeholder="https://emc.kompetisi.net/exam"
+              />
+              <p style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>
+                After successful payment, students are redirected here with a JWT to take the exam on your existing platform. Leave empty for native exam (Compete Platform — Launch 2).
+              </p>
+            </div>
           </div>
         </div>
 

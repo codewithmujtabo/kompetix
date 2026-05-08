@@ -9,16 +9,22 @@ export interface SnapTokenResponse {
   orderId:     string;
 }
 
+export type PayerKind = "self" | "parent" | "school" | "sponsor";
+
 /**
  * Request a Midtrans Snap token for a pending registration.
  * Returns the redirect URL to open in the WebBrowser.
+ *
+ * payerKind: who is paying. Defaults to "self". Used for receipt attribution
+ * (Spec F-PY-03: parent reimbursement requires receipt in payer's name).
  */
 export async function createSnapToken(
-  registrationId: string
+  registrationId: string,
+  payerKind: PayerKind = "self"
 ): Promise<SnapTokenResponse> {
   return apiRequest<SnapTokenResponse>("/payments/snap", {
     method: "POST",
-    body: { registrationId },
+    body: { registrationId, payerKind },
   });
 }
 

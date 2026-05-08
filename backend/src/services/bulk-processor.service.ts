@@ -161,6 +161,31 @@ async function processRow(row: CsvRow): Promise<void> {
       }
     }
 
+    // Hard-match dedup (Spec F-ID-06): if NISN + email both miss but full_name +
+    // school_name + grade all match exactly one existing student, link to them
+    // instead of creating a duplicate. Skip if ambiguous (>1 match) to avoid
+    // wrong attribution — operator can resolve manually.
+    if (!userId && row.full_name && row.school_name && grade) {
+      const hardMatch = await client.query(
+        `SELECT u.id FROM users u
+           JOIN students s ON s.id = u.id
+          WHERE u.role = 'student'
+            AND u.deleted_at IS NULL
+            AND LOWER(TRIM(u.full_name)) = LOWER(TRIM($1))
+            AND LOWER(TRIM(s.school)) = LOWER(TRIM($2))
+            AND s.grade = $3`,
+        [row.full_name, row.school_name, String(grade)]
+      );
+      if (hardMatch.rows.length === 1) {
+        userId = hardMatch.rows[0].id;
+        console.log(`[bulk-processor] hard-match link: ${row.full_name} → existing user ${userId}`);
+      } else if (hardMatch.rows.length > 1) {
+        throw new Error(
+          `Ambiguous hard-match: ${hardMatch.rows.length} existing students matched name+school+grade. Resolve manually.`
+        );
+      }
+    }
+
     // Create student if doesn't exist
     if (!userId) {
       const tempPassword = crypto.randomBytes(16).toString("hex");

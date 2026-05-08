@@ -33,6 +33,7 @@ export default function NewCompetitionPage() {
     requiredDocs: [] as string[],
     imageUrl: '',
     participantInstructions: '',
+    postPaymentRedirectUrl: '',
   });
 
   const [newDoc, setNewDoc] = useState('');
@@ -79,6 +80,7 @@ export default function NewCompetitionPage() {
       requiredDocs: form.requiredDocs,
       imageUrl: form.imageUrl || null,
       participantInstructions: form.participantInstructions || null,
+      postPaymentRedirectUrl: form.postPaymentRedirectUrl || null,
       rounds: [],
     };
 
@@ -346,6 +348,19 @@ export default function NewCompetitionPage() {
                 onChange={(e) => setForm({ ...form, websiteUrl: e.target.value })}
                 placeholder="https://example.com"
               />
+            </div>
+            <div>
+              <label className="label">Post-Payment Redirect URL</label>
+              <input
+                className="input"
+                type="url"
+                value={form.postPaymentRedirectUrl}
+                onChange={(e) => setForm({ ...form, postPaymentRedirectUrl: e.target.value })}
+                placeholder="https://emc.kompetisi.net/exam"
+              />
+              <p style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>
+                After successful payment, students are redirected here with a JWT to take the exam on your existing platform. Leave empty for native exam (Compete Platform — Launch 2).
+              </p>
             </div>
           </div>
         </div>

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { pool } from "../config/database";
 import { adminOnly } from "../middleware/admin.middleware";
 import { authMiddleware } from "../middleware/auth";
+import { audit } from "../middleware/audit";
 import * as pushService from "../services/push.service";
 import { refundPayment } from "../services/midtrans.service";
 
@@ -52,7 +53,7 @@ router.get("/competitions", async (req, res) => {
  * POST /api/admin/competitions
  * Create a new competition with rounds
  */
-router.post("/competitions", async (req, res) => {
+router.post("/competitions", audit({ action: "admin.competition.create", resourceType: "competition" }), async (req, res) => {
   const client = await pool.connect();
 
   try {
@@ -171,7 +172,7 @@ router.post("/competitions", async (req, res) => {
  * PUT /api/admin/competitions/:id
  * Update an existing competition
  */
-router.put("/competitions/:id", async (req, res) => {
+router.put("/competitions/:id", audit({ action: "admin.competition.update", resourceType: "competition", resourceIdParam: "id" }), async (req, res) => {
   const client = await pool.connect();
 
   try {
@@ -301,7 +302,7 @@ router.put("/competitions/:id", async (req, res) => {
  * DELETE /api/admin/competitions/:id
  * Delete a competition
  */
-router.delete("/competitions/:id", async (req, res) => {
+router.delete("/competitions/:id", audit({ action: "admin.competition.delete", resourceType: "competition", resourceIdParam: "id" }), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -524,6 +525,181 @@ router.get("/stats", async (req, res) => {
 });
 
 /**
+ * GET /api/admin/kpi
+ * Cross-competition KPI dashboard. Returns:
+ *   - totals: registrations, paid, free, revenue Rp
+ *   - paidRate: paid / billable %
+ *   - avgTimeToPaymentHours: avg(paid_at - created_at) for settled paid regs
+ *   - topCompetitions: top 3 by registration count (last 90d)
+ *   - dailySeries: last 90 days of [date, registrations, revenue]
+ *
+ * Spec F-AD-05.
+ */
+router.get("/kpi", async (_req, res) => {
+  try {
+    const [totals, topComps, daily] = await Promise.all([
+      pool.query(`
+        SELECT
+          COUNT(*)                                               AS total_registrations,
+          COUNT(*) FILTER (WHERE r.status = 'paid')              AS paid_registrations,
+          COUNT(*) FILTER (WHERE c.fee = 0 OR c.fee IS NULL)     AS free_registrations,
+          COALESCE(SUM(c.fee) FILTER (WHERE r.status = 'paid'), 0)::bigint AS revenue_rp,
+          AVG(
+            EXTRACT(EPOCH FROM (p.created_at - r.created_at)) / 3600
+          ) FILTER (WHERE r.status = 'paid' AND p.created_at IS NOT NULL) AS avg_hours_to_pay
+        FROM registrations r
+        JOIN competitions  c ON c.id = r.comp_id
+   LEFT JOIN payments      p ON p.registration_id = r.id AND p.payment_status = 'settlement'
+       WHERE r.deleted_at IS NULL
+      `),
+      pool.query(`
+        SELECT c.id, c.name, c.fee, COUNT(r.id)::int AS registration_count
+          FROM competitions c
+     LEFT JOIN registrations r
+            ON r.comp_id = c.id
+           AND r.created_at > now() - INTERVAL '90 days'
+           AND r.deleted_at IS NULL
+         GROUP BY c.id, c.name, c.fee
+         ORDER BY registration_count DESC
+         LIMIT 3
+      `),
+      pool.query(`
+        SELECT date_trunc('day', r.created_at)::date AS day,
+               COUNT(*)::int                          AS registrations,
+               COALESCE(SUM(c.fee) FILTER (WHERE r.status = 'paid'), 0)::bigint AS revenue_rp
+          FROM registrations r
+          JOIN competitions  c ON c.id = r.comp_id
+         WHERE r.created_at > now() - INTERVAL '90 days'
+           AND r.deleted_at IS NULL
+         GROUP BY day
+         ORDER BY day ASC
+      `),
+    ]);
+
+    const t = totals.rows[0];
+    const billable = Number(t.total_registrations) - Number(t.free_registrations);
+    const paidRate = billable > 0 ? Number(t.paid_registrations) / billable : 0;
+
+    res.json({
+      totals: {
+        totalRegistrations: Number(t.total_registrations),
+        paidRegistrations:  Number(t.paid_registrations),
+        freeRegistrations:  Number(t.free_registrations),
+        revenueRp:          Number(t.revenue_rp ?? 0),
+      },
+      paidRate,
+      avgTimeToPaymentHours: t.avg_hours_to_pay ? Number(t.avg_hours_to_pay) : null,
+      topCompetitions: topComps.rows.map((c) => ({
+        id: c.id,
+        name: c.name,
+        fee: Number(c.fee ?? 0),
+        registrationCount: c.registration_count,
+      })),
+      dailySeries: daily.rows.map((d) => ({
+        date: d.day,
+        registrations: d.registrations,
+        revenueRp: Number(d.revenue_rp ?? 0),
+      })),
+    });
+  } catch (err) {
+    console.error("KPI error:", err);
+    res.status(500).json({ message: "Failed to compute KPIs" });
+  }
+});
+
+/**
+ * GET /api/admin/segments
+ * Pre-built audience segments for cross-sell campaigns.
+ * Spec F-AD-02 (viewer only — full builder is Phase 2).
+ *
+ * Each segment returns: { key, label, description, count, sampleUserIds[] }
+ * Use sampleUserIds for spot-checks; full export should be a separate endpoint.
+ */
+router.get("/segments", async (_req, res) => {
+  try {
+    // Lapsed: historical participation but no recent activity in registrations.
+    // Multi-comp veterans: 3+ distinct historical competitions.
+    // EMC-only never tried KMC: claimed an EMC record but no KMC registration on platform.
+    const [lapsed, veterans, emcOnly] = await Promise.all([
+      pool.query(`
+        SELECT u.id
+          FROM users u
+         WHERE u.deleted_at IS NULL
+           AND u.role = 'student'
+           AND EXISTS (
+             SELECT 1 FROM historical_participants hp
+              WHERE hp.claimed_by = u.id
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM registrations r
+              WHERE r.user_id = u.id
+                AND r.created_at > now() - INTERVAL '1 year'
+                AND r.deleted_at IS NULL
+           )
+         LIMIT 5000
+      `),
+      pool.query(`
+        SELECT u.id
+          FROM users u
+          JOIN historical_participants hp ON hp.claimed_by = u.id
+         WHERE u.deleted_at IS NULL AND u.role = 'student'
+         GROUP BY u.id
+        HAVING COUNT(DISTINCT hp.comp_name) >= 3
+         LIMIT 5000
+      `),
+      pool.query(`
+        SELECT DISTINCT u.id
+          FROM users u
+          JOIN historical_participants hp ON hp.claimed_by = u.id
+         WHERE u.deleted_at IS NULL
+           AND u.role = 'student'
+           AND hp.comp_name ILIKE 'EMC%'
+           AND NOT EXISTS (
+             SELECT 1 FROM registrations r
+               JOIN competitions c ON c.id = r.comp_id
+              WHERE r.user_id = u.id
+                AND c.name ILIKE '%KMC%'
+                AND r.deleted_at IS NULL
+           )
+         LIMIT 5000
+      `),
+    ]);
+
+    const segs = [
+      {
+        key:   "lapsed_1y",
+        label: "Lapsed >1 year",
+        description: "Past-platform participants who haven't registered for any competition in the last 12 months.",
+        userIds: lapsed.rows.map((r) => r.id),
+      },
+      {
+        key:   "multi_comp_veterans",
+        label: "Multi-comp veterans",
+        description: "Students with 3+ distinct historical competitions claimed.",
+        userIds: veterans.rows.map((r) => r.id),
+      },
+      {
+        key:   "emc_only_no_kmc",
+        label: "EMC-only never tried KMC",
+        description: "Claimed an EMC record but never registered for any KMC competition on Competzy.",
+        userIds: emcOnly.rows.map((r) => r.id),
+      },
+    ];
+
+    res.json(
+      segs.map((s) => ({
+        ...s,
+        count: s.userIds.length,
+        sampleUserIds: s.userIds.slice(0, 20),
+      }))
+    );
+  } catch (err) {
+    console.error("Segments error:", err);
+    res.status(500).json({ message: "Failed to compute segments" });
+  }
+});
+
+/**
  * GET /api/admin/registrations/pending
  * Get registrations filtered by status (default: pending_review, use ?status=all for all)
  */
@@ -630,7 +806,7 @@ router.get("/registrations/:id", async (req, res) => {
  * POST /api/admin/registrations/:id/approve
  * Approve a registration
  */
-router.post("/registrations/:id/approve", async (req, res) => {
+router.post("/registrations/:id/approve", audit({ action: "admin.registration.approve", resourceType: "registration", resourceIdParam: "id" }), async (req, res) => {
   try {
     const adminId = req.userId!;
     const { id } = req.params;
@@ -718,7 +894,7 @@ router.post("/registrations/:id/approve", async (req, res) => {
  * POST /api/admin/registrations/:id/reject
  * Reject a registration
  */
-router.post("/registrations/:id/reject", async (req, res) => {
+router.post("/registrations/:id/reject", audit({ action: "admin.registration.reject", resourceType: "registration", resourceIdParam: "id" }), async (req, res) => {
   try {
     const adminId = req.userId!;
     const { id } = req.params;
@@ -862,7 +1038,7 @@ router.get("/schools/provinces", async (_req, res) => {
 });
 
 // ── POST /api/admin/schools ───────────────────────────────────────────────
-router.post("/schools", async (req, res) => {
+router.post("/schools", audit({ action: "admin.school.create", resourceType: "school" }), async (req, res) => {
   try {
     const { npsn, name, city, province, address } = req.body;
     if (!npsn || !name) {
@@ -928,7 +1104,7 @@ router.get("/users", async (req, res) => {
 });
 
 // ── POST /api/admin/notifications/broadcast ───────────────────────────────
-router.post("/notifications/broadcast", async (req, res) => {
+router.post("/notifications/broadcast", audit({ action: "admin.notification.broadcast", resourceType: "broadcast" }), async (req, res) => {
   try {
     const { title, body, type, school_ids, competition_id, scheduled_for } = req.body;
 
@@ -988,7 +1164,7 @@ router.post("/notifications/broadcast", async (req, res) => {
 // ── POST /api/admin/payments/:id/refund ──────────────────────────────────────
 // Issues a Midtrans refund for a settled payment and marks the registration refunded.
 // Body: { reason?: string }
-router.post("/payments/:id/refund", async (req, res) => {
+router.post("/payments/:id/refund", audit({ action: "admin.payment.refund", resourceType: "payment", resourceIdParam: "id" }), async (req, res) => {
   try {
     const { id } = req.params;
     const reason: string = req.body?.reason || "Admin-initiated refund";

@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type PaymentState =
+  | "selecting"  // user picks payer attribution before launching
   | "loading"    // fetching snap token
   | "opening"    // browser is open
   | "success"    // settlement / capture
@@ -22,8 +23,17 @@ type PaymentState =
   | "cancelled"  // user closed browser without paying
   | "error";     // network / server error
 
+type PayerKind = "self" | "parent" | "school" | "sponsor";
+
+const PAYER_OPTIONS: Array<{ value: PayerKind; label: string; subtitle: string }> = [
+  { value: "self",    label: "Saya sendiri",    subtitle: "Pembayaran atas nama saya" },
+  { value: "parent",  label: "Orang tua / wali", subtitle: "Receipt akan diterbitkan atas nama orang tua" },
+  { value: "school",  label: "Sekolah",          subtitle: "Sekolah yang menanggung biaya" },
+  { value: "sponsor", label: "Sponsor",          subtitle: "Pihak ketiga (yayasan, perusahaan)" },
+];
+
 const STATE_CONTENT: Record<
-  Exclude<PaymentState, "loading" | "opening">,
+  Exclude<PaymentState, "selecting" | "loading" | "opening">,
   { emoji: string; title: string; subtitle: string; accent: string }
 > = {
   success: {
@@ -64,9 +74,10 @@ export default function PayScreen() {
   const insets = useSafeAreaInsets();
   const { refreshRegistrations } = useUser();
 
-  const [paymentState, setPaymentState] = useState<PaymentState>("loading");
+  const [paymentState, setPaymentState] = useState<PaymentState>("selecting");
   const [loadingMessage, setLoadingMessage] = useState("Preparing payment...");
   const [errorDetail, setErrorDetail] = useState("");
+  const [payerKind, setPayerKind] = useState<PayerKind>("self");
 
   const started = useRef(false);
 
@@ -95,12 +106,12 @@ export default function PayScreen() {
       setLoadingMessage("Preparing payment...");
       setPaymentState("loading");
 
-      const { redirectUrl } = await paymentsService.createSnapToken(registrationId);
+      const { redirectUrl } = await paymentsService.createSnapToken(registrationId, payerKind);
 
       setPaymentState("opening");
       // Dismiss any lingering session from a previous attempt before opening a new one
       WebBrowser.dismissAuthSession();
-      const result = await WebBrowser.openAuthSessionAsync(redirectUrl, "kompetix://");
+      const result = await WebBrowser.openAuthSessionAsync(redirectUrl, "competzy://");
 
       // In both success-redirect and dismiss cases, always verify via backend.
       // The backend calls Midtrans Status API and syncs the DB — this fixes sandbox
@@ -143,13 +154,85 @@ export default function PayScreen() {
       setErrorDetail(err?.message || "");
       setPaymentState("error");
     }
-  }, [registrationId, refreshRegistrations, pollVerify]);
+  }, [registrationId, refreshRegistrations, pollVerify, payerKind]);
 
-  useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-    startPayment();
-  }, [startPayment]);
+  // No auto-start; user must pick a payer first.
+  // (Earlier auto-launch removed: parent-payer attribution is a validated pain point per spec F-PY-03.)
+
+  if (paymentState === "selecting") {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
+        <View style={styles.card}>
+          <Text style={styles.emoji}>💳</Text>
+          <Text style={[styles.title, { color: Brand.primary }]}>Dibayar Oleh</Text>
+          <Text style={styles.subtitle}>
+            Receipt akan dikirim atas nama pembayar. Pilih siapa yang menanggung biaya ini.
+          </Text>
+        </View>
+
+        <View style={{ gap: 10, marginBottom: 16 }}>
+          {PAYER_OPTIONS.map((opt) => {
+            const selected = payerKind === opt.value;
+            return (
+              <TouchableOpacity
+                key={opt.value}
+                onPress={() => setPayerKind(opt.value)}
+                activeOpacity={0.85}
+                style={{
+                  backgroundColor: "#fff",
+                  borderRadius: 14,
+                  padding: 16,
+                  borderWidth: 2,
+                  borderColor: selected ? Brand.primary : "#E2E8F0",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 14,
+                }}
+              >
+                <View
+                  style={{
+                    width: 22, height: 22, borderRadius: 11,
+                    borderWidth: 2,
+                    borderColor: selected ? Brand.primary : "#CBD5E1",
+                    alignItems: "center", justifyContent: "center",
+                  }}
+                >
+                  {selected ? (
+                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: Brand.primary }} />
+                  ) : null}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontWeight: "700", color: "#0F172A" }}>{opt.label}</Text>
+                  <Text style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>{opt.subtitle}</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <View style={styles.actions}>
+          <TouchableOpacity
+            style={styles.primaryBtn}
+            onPress={() => {
+              if (started.current) return;
+              started.current = true;
+              startPayment();
+            }}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.primaryBtnText}>Lanjutkan ke Pembayaran</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.secondaryBtn}
+            onPress={() => router.back()}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.secondaryBtnText}>Back</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   if (paymentState === "loading" || paymentState === "opening") {
     return (

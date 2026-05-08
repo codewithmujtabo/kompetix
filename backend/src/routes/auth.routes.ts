@@ -96,6 +96,7 @@ async function fetchUserWithRole(userId: string) {
 
   return {
     id: user.id,
+    kid: user.kid,            // KX-2026-NNNNNNN — stable person identifier (Spec F-ID-02)
     email: user.email,
     fullName: user.full_name,
     phone: user.phone,

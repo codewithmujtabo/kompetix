@@ -9,6 +9,7 @@ const NAV = [
   { href: '/dashboard',       label: 'Dashboard',         icon: '▦',  exact: true },
   { href: '/registrations',   label: 'Registrations',     icon: '📋' },
   { href: '/competitions',    label: 'Competitions',      icon: '🏆' },
+  { href: '/segments',        label: 'Segments',          icon: '🧩' },
   { href: '/notifications',   label: 'Send Notification', icon: '📣' },
   { href: '/schools',         label: 'Schools',           icon: '🏫' },
   { href: '/users',           label: 'Users',             icon: '👥' },
@@ -31,7 +32,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
         display: 'flex', flexDirection: 'column',
       }}>
         <div style={{ padding: '22px 20px 20px', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ fontFamily: 'var(--ff-display)', fontSize: 14, lineHeight: 1.2 }}>Kompetix</div>
+          <div style={{ fontFamily: 'var(--ff-display)', fontSize: 14, lineHeight: 1.2 }}>Competzy</div>
           <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.1em', marginTop: 3 }}>Admin Panel</div>
         </div>
 

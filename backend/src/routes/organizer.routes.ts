@@ -3,6 +3,7 @@ import multer from "multer";
 import { pool } from "../config/database";
 import { authMiddleware } from "../middleware/auth";
 import { organizerOnly } from "../middleware/organizer.middleware";
+import { audit } from "../middleware/audit";
 import * as pushService from "../services/push.service";
 import { storeFile } from "../services/storage.service";
 
@@ -70,7 +71,7 @@ router.get("/me", async (req: Request, res: Response) => {
 });
 
 // ── PUT /api/organizers/me ────────────────────────────────────────────────
-router.put("/me", async (req: Request, res: Response) => {
+router.put("/me", audit({ action: "organizer.profile.update", resourceType: "organizer" }), async (req: Request, res: Response) => {
   try {
     const { orgName, bio, website, logoUrl } = req.body;
 
@@ -142,7 +143,7 @@ router.get("/competitions", async (req: Request, res: Response) => {
 });
 
 // ── POST /api/organizers/competitions ────────────────────────────────────
-router.post("/competitions", async (req: Request, res: Response) => {
+router.post("/competitions", audit({ action: "organizer.competition.create", resourceType: "competition" }), async (req: Request, res: Response) => {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -152,6 +153,7 @@ router.post("/competitions", async (req: Request, res: Response) => {
       registrationStatus, posterUrl, isInternational, detailedDescription,
       description, fee, quota, regOpenDate, regCloseDate, competitionDate,
       requiredDocs, imageUrl, participantInstructions, rounds,
+      postPaymentRedirectUrl,
     } = req.body;
 
     if (!name || !category) {
@@ -181,8 +183,9 @@ router.post("/competitions", async (req: Request, res: Response) => {
          id, name, organizer_name, category, grade_level, website_url,
          registration_status, poster_url, is_international, detailed_description,
          description, fee, quota, reg_open_date, reg_close_date, competition_date,
-         required_docs, image_url, round_count, participant_instructions, created_by
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+         required_docs, image_url, round_count, participant_instructions, created_by,
+         post_payment_redirect_url
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
        RETURNING *`,
       [
         compId, name, resolvedOrgName, category, gradeLevel ?? null,
@@ -192,6 +195,7 @@ router.post("/competitions", async (req: Request, res: Response) => {
         fee ?? 0, quota ?? null, regOpenDate ?? null, regCloseDate ?? null,
         competitionDate ?? null, requiredDocs ?? [], imageUrl ?? null,
         rounds?.length ?? 0, participantInstructions ?? null, req.userId,
+        postPaymentRedirectUrl ?? null,
       ]
     );
 
@@ -226,7 +230,7 @@ router.post("/competitions", async (req: Request, res: Response) => {
 });
 
 // ── PUT /api/organizers/competitions/:id ──────────────────────────────────
-router.put("/competitions/:id", async (req: Request, res: Response) => {
+router.put("/competitions/:id", audit({ action: "organizer.competition.update", resourceType: "competition", resourceIdParam: "id" }), async (req: Request, res: Response) => {
   const client = await pool.connect();
   try {
     if (!await ownsCompetition(req.params.id as string, req.userId!, (req as any).userRole)) {
@@ -242,6 +246,7 @@ router.put("/competitions/:id", async (req: Request, res: Response) => {
       registrationStatus, posterUrl, isInternational, detailedDescription,
       description, fee, quota, regOpenDate, regCloseDate, competitionDate,
       requiredDocs, imageUrl, participantInstructions, rounds,
+      postPaymentRedirectUrl,
     } = req.body;
 
     const compResult = await client.query(
@@ -251,15 +256,16 @@ router.put("/competitions/:id", async (req: Request, res: Response) => {
          is_international = $8, detailed_description = $9, description = $10,
          fee = $11, quota = $12, reg_open_date = $13, reg_close_date = $14,
          competition_date = $15, required_docs = $16, image_url = $17,
-         round_count = $18, participant_instructions = $19
-       WHERE id = $20
+         round_count = $18, participant_instructions = $19,
+         post_payment_redirect_url = $20
+       WHERE id = $21
        RETURNING *`,
       [
         name, organizerName, category, gradeLevel, websiteUrl,
         registrationStatus, posterUrl, isInternational, detailedDescription,
         description, fee, quota, regOpenDate, regCloseDate, competitionDate,
         requiredDocs ?? [], imageUrl, rounds?.length ?? 0,
-        participantInstructions ?? null, id,
+        participantInstructions ?? null, postPaymentRedirectUrl ?? null, id,
       ]
     );
 
@@ -353,6 +359,7 @@ router.get("/competitions/:id", async (req: Request, res: Response) => {
       requiredDocs: c.required_docs,
       registrationCount: c.registration_count,
       csvTemplateUrl: c.csv_template_url ?? null,
+      postPaymentRedirectUrl: c.post_payment_redirect_url ?? null,
       createdAt: c.created_at,
     });
   } catch (err) {
@@ -362,7 +369,7 @@ router.get("/competitions/:id", async (req: Request, res: Response) => {
 });
 
 // ── POST /api/organizers/competitions/:id/publish ─────────────────────────
-router.post("/competitions/:id/publish", async (req: Request, res: Response) => {
+router.post("/competitions/:id/publish", audit({ action: "organizer.competition.publish", resourceType: "competition", resourceIdParam: "id" }), async (req: Request, res: Response) => {
   try {
     if (!await ownsCompetition(req.params.id as string, req.userId!, (req as any).userRole)) {
       res.status(403).json({ message: "You do not own this competition" });
@@ -390,7 +397,7 @@ router.post("/competitions/:id/publish", async (req: Request, res: Response) => 
 });
 
 // ── POST /api/organizers/competitions/:id/close ───────────────────────────
-router.post("/competitions/:id/close", async (req: Request, res: Response) => {
+router.post("/competitions/:id/close", audit({ action: "organizer.competition.close", resourceType: "competition", resourceIdParam: "id" }), async (req: Request, res: Response) => {
   try {
     if (!await ownsCompetition(req.params.id as string, req.userId!, (req as any).userRole)) {
       res.status(403).json({ message: "You do not own this competition" });
@@ -474,7 +481,7 @@ router.get("/competitions/:id/registrations", async (req: Request, res: Response
 });
 
 // ── POST /api/organizers/registrations/:id/approve ────────────────────────
-router.post("/registrations/:id/approve", async (req: Request, res: Response) => {
+router.post("/registrations/:id/approve", audit({ action: "organizer.registration.approve", resourceType: "registration", resourceIdParam: "id" }), async (req: Request, res: Response) => {
   try {
     // Verify organizer owns the competition this registration belongs to
     const regResult = await pool.query(
@@ -534,7 +541,7 @@ router.post("/registrations/:id/approve", async (req: Request, res: Response) =>
 });
 
 // ── POST /api/organizers/registrations/:id/reject ─────────────────────────
-router.post("/registrations/:id/reject", async (req: Request, res: Response) => {
+router.post("/registrations/:id/reject", audit({ action: "organizer.registration.reject", resourceType: "registration", resourceIdParam: "id" }), async (req: Request, res: Response) => {
   try {
     const { reason } = req.body;
     if (!reason?.trim()) {
