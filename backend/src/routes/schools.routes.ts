@@ -720,4 +720,131 @@ router.get("/export/registrations/pdf", authMiddleware, schoolAdminOnly, async (
   }
 });
 
+// ── GET /api/schools/export/achievement.pdf ───────────────────────────────
+// Spec F-SP-03: per-student achievement export with school + Eduversal branding.
+// Aggregates results from historical_participants (past medals/finalist) and
+// recent registrations.status (current). Outputs an A4 PDF the school can
+// distribute or attach to formal letters.
+router.get("/export/achievement.pdf", authMiddleware, schoolAdminOnly, async (req: Request, res: Response) => {
+  try {
+    const userId = req.userId!;
+
+    const userResult = await pool.query(
+      `SELECT u.school_id, s.name AS school_name, s.npsn
+         FROM users u
+         JOIN schools s ON u.school_id = s.id
+        WHERE u.id = $1`,
+      [userId]
+    );
+    if (userResult.rows.length === 0 || !userResult.rows[0].school_id) {
+      res.status(403).json({ message: "No school associated with this account" });
+      return;
+    }
+    const { school_id: schoolId, school_name: schoolName, npsn } = userResult.rows[0];
+
+    // Pull historical achievements for any user linked to this school.
+    const historical = await pool.query(
+      `SELECT u.full_name, hp.comp_name, hp.comp_year, hp.result, hp.event_part
+         FROM historical_participants hp
+         JOIN users u ON u.id = hp.claimed_by
+        WHERE u.school_id = $1
+          AND hp.result IS NOT NULL
+        ORDER BY hp.comp_year DESC, u.full_name ASC
+        LIMIT 1000`,
+      [schoolId]
+    );
+
+    // Plus current registrations whose status indicates a final result already.
+    const current = await pool.query(
+      `SELECT u.full_name, c.name AS comp_name, EXTRACT(YEAR FROM c.competition_date)::int AS comp_year,
+              r.status AS result
+         FROM registrations r
+         JOIN users u ON u.id = r.user_id
+         JOIN competitions c ON c.id = r.comp_id
+        WHERE u.school_id = $1
+          AND r.deleted_at IS NULL
+          AND r.status IN ('paid', 'approved', 'completed')
+        ORDER BY c.competition_date DESC NULLS LAST, u.full_name ASC
+        LIMIT 1000`,
+      [schoolId]
+    );
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="achievement-${(schoolName as string).replace(/\W+/g, "-").toLowerCase()}-${Date.now()}.pdf"`
+    );
+
+    const doc = new PDFDocument({ margin: 48, size: "A4" });
+    doc.pipe(res);
+
+    // ── Header: brand strip + school banner
+    doc.fontSize(9).fillColor("#94A3B8")
+      .text("COMPETZY · An Eduversal platform", { align: "right" });
+    doc.moveDown(0.6);
+
+    doc.fontSize(22).fillColor("#0F172A").font("Helvetica-Bold")
+      .text(schoolName as string, { align: "left" });
+    doc.fontSize(11).fillColor("#475569").font("Helvetica")
+      .text(`NPSN ${npsn}`, { align: "left" });
+    doc.moveDown(0.4);
+    doc.fontSize(16).fillColor("#0F172A").font("Helvetica-Bold")
+      .text("Student Achievement Report");
+    doc.fontSize(10).fillColor("#94A3B8").font("Helvetica")
+      .text(`Generated ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`);
+    doc.moveDown(1);
+
+    const allRows = [
+      ...historical.rows.map((r) => ({ ...r, source: "historical" })),
+      ...current.rows.map((r) => ({ ...r, source: "current" })),
+    ];
+
+    if (allRows.length === 0) {
+      doc.fontSize(12).fillColor("#475569")
+        .text("No achievements recorded yet for this school.");
+      doc.end();
+      return;
+    }
+
+    // ── Table header
+    doc.fontSize(10).fillColor("#0F172A").font("Helvetica-Bold");
+    const startY = doc.y;
+    doc.text("Student",     48,  startY, { width: 180 });
+    doc.text("Competition", 232, startY, { width: 200 });
+    doc.text("Year",        436, startY, { width: 40 });
+    doc.text("Result",      480, startY, { width: 80 });
+    doc.moveTo(48, doc.y + 4).lineTo(560, doc.y + 4).strokeColor("#CBD5E1").lineWidth(0.5).stroke();
+    doc.moveDown(0.6);
+
+    // ── Rows
+    doc.fontSize(10).font("Helvetica").fillColor("#0F172A");
+    for (const row of allRows) {
+      const y = doc.y;
+      doc.text(String(row.full_name ?? "—"),                48,  y, { width: 180 });
+      doc.text(`${row.comp_name ?? "—"}${row.event_part ? ` (${row.event_part})` : ""}`,
+                                                            232, y, { width: 200 });
+      doc.text(String(row.comp_year ?? "—"),                436, y, { width: 40 });
+      doc.text(String(row.result ?? "—").toUpperCase(),     480, y, { width: 80 });
+      doc.moveDown(0.7);
+
+      // Page break safety
+      if (doc.y > 760) {
+        doc.addPage();
+      }
+    }
+
+    // ── Footer on every page handled by addPage hook (kept simple here)
+    doc.moveDown(1.4);
+    doc.fontSize(8).fillColor("#94A3B8")
+      .text("This report is generated from competition data registered on Competzy and historical Eduversal records.", { align: "center" });
+
+    doc.end();
+  } catch (err) {
+    console.error("Achievement PDF error:", err);
+    if (!res.headersSent) {
+      res.status(500).json({ message: "Failed to generate achievement PDF" });
+    }
+  }
+});
+
 export default router;

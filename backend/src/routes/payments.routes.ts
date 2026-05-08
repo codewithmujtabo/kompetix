@@ -523,20 +523,29 @@ router.post(
         0
       );
 
-      // Fetch actor email for Midtrans customer details
+      // Fetch actor email + school name for Midtrans customer details.
+      // Spec F-PY-03 / 16.4: bulk payments are "Dibayar oleh sekolah", so
+      // the Midtrans receipt is issued in the school's name with the
+      // coordinator as the contact email. The previous implementation put
+      // the coordinator's personal name on the receipt, which made
+      // reimbursement ambiguous.
       const actorEmailRow = await pool.query(
-        "SELECT email, full_name FROM users WHERE id = $1",
+        "SELECT email FROM users WHERE id = $1",
         [actorId]
       );
+      const schoolRow = await pool.query(
+        "SELECT name FROM schools WHERE id = $1",
+        [schoolId]
+      );
       const adminEmail: string = actorEmailRow.rows[0]?.email ?? "";
-      const adminName: string = actorEmailRow.rows[0]?.full_name ?? "School User";
+      const customerName: string = (schoolRow.rows[0]?.name as string | undefined) ?? "School";
 
       // Create Midtrans Snap token for the total
       const orderId = `BATCH-${Date.now()}`;
       const snapResult = await createSnapToken({
         orderId,
         amount: totalAmount,
-        customerName: adminName,
+        customerName,
         customerEmail: adminEmail,
         competitionName: `School Batch (${registrationIds.length} registrations)`,
       });

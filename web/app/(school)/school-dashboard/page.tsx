@@ -48,6 +48,8 @@ const ADMIN_QUICK_LINKS = [
   { href: '/bulk-registration',     icon: '📋', label: 'Bulk Registration',   desc: 'Register multiple students at once' },
   { href: '/school-registrations',  icon: '📊', label: 'Registrations',       desc: 'Track all student registrations' },
   { href: '/bulk-payment',          icon: '💳', label: 'Bulk Payment',        desc: 'Pay for multiple registrations' },
+  // Native browser fetch — opens in a new tab as a PDF download. credentials: 'include' is automatic for same-origin navigations.
+  { href: '/api/schools/export/achievement.pdf', icon: '🏅', label: 'Achievement PDF', desc: 'Download student results report' },
 ];
 
 // Навигация для учителя
