@@ -41,7 +41,7 @@ function formatPrice(fee: number) {
 
 function formatDeadline(date: string | null) {
   if (!date) return "-";
-  return new Date(date).toLocaleDateString("id-ID", {
+  return new Date(date).toLocaleDateString("en-US", {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -648,7 +648,7 @@ export default function DiscoverScreen() {
         {activeCategory ? (
           <View style={styles.activeFilters}>
             <Text style={[Type.label, { color: TextColor.secondary }]}>
-              Kategori: {activeCategory}
+              Category: {activeCategory}
             </Text>
             <Pressable
               onPress={() => setActiveCategory(null)}

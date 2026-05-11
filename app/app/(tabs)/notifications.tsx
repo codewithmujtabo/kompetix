@@ -48,7 +48,7 @@ function relativeDate(d: string) {
   if (hr < 24) return `${hr} hr ago`;
   const day = Math.floor(hr / 24);
   if (day < 7) return `${day} days ago`;
-  return new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+  return new Date(d).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" });
 }
 
 export default function NotificationsScreen() {
@@ -103,7 +103,7 @@ export default function NotificationsScreen() {
       }
     }
     if (compId && (type.includes("competition") || type.includes("registration") || type.includes("deadline"))) {
-      router.push({ pathname: "/(tabs)/competitions/[id]", params: { id: compId } });
+      router.push({ pathname: "/(tabs)/competitions/[id]", params: { id: compId, from: "notifications" } });
       return;
     }
     if (type.includes("payment")) router.push("/(tabs)/my-competitions");

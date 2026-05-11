@@ -21,6 +21,7 @@ import {
   Type,
 } from "@/constants/theme";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { ScreenHeader } from "@/components/ui/ScreenHeader";
 import { getUpcomingDeadlines, type Deadline } from "@/services/teachers.service";
 
 export default function TeacherActionsScreen() {
@@ -67,23 +68,8 @@ export default function TeacherActionsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <ScreenHeader title="Quick Actions" subtitle="Fast access to common tasks" />
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Back Button */}
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.backButtonText}>← Back</Text>
-        </TouchableOpacity>
-
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Quick Actions</Text>
-          <Text style={styles.headerSubtitle}>
-            Fast access to common tasks
-          </Text>
-        </View>
 
         {/* Web portal banner */}
         <TouchableOpacity
@@ -202,19 +188,6 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 40,
   },
-  backButton: {
-    alignSelf: "flex-start",
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    marginBottom: 16,
-  },
-  backButtonText: {
-    ...Type.label,
-    color: Brand.primary,
-  },
-  header: { marginBottom: Spacing["2xl"] },
-  headerTitle: { ...Type.displayMd, marginBottom: 4 },
-  headerSubtitle: { ...Type.body, color: TextColor.secondary },
   webPortalBanner: {
     backgroundColor: Brand.primarySoft,
     borderRadius: Radius["2xl"],

@@ -28,9 +28,9 @@ import * as favoritesService from "@/services/favorites.service";
 import type { Favorite } from "@/services/favorites.service";
 
 const TABS = [
-  { key: "Saved", label: "Saved", emoji: "💙" },
-  { key: "Applications", label: "Applications", emoji: "📝" },
-  { key: "Joined", label: "Joined", emoji: "🏅" },
+  { key: "Saved", label: "Saved" },
+  { key: "Applications", label: "Applications" },
+  { key: "Joined", label: "Joined" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 
@@ -166,12 +166,12 @@ export default function MyCompetitionsScreen() {
     const emoji = CategoryEmoji[item.category ?? ""] ?? "🏆";
     return (
       <Card accentColor={accent}>
-        <CardHeader emoji={emoji} bg={bg} title={item.name} subtitle={`${item.organizer_name} • ${item.category}`} onTitlePress={() => router.push({ pathname: "/(tabs)/competitions/[id]", params: { id: item.id } })} />
+        <CardHeader emoji={emoji} bg={bg} title={item.name} subtitle={`${item.organizer_name} • ${item.category}`} onTitlePress={() => router.push({ pathname: "/(tabs)/competitions/[id]", params: { id: item.id, from: "my-competitions" } })} />
         <Text style={[Type.title, { marginTop: Spacing.sm }]}>{formatCurrency(item.fee)}</Text>
         <View style={styles.actionRow}>
           <View style={{ flex: 1 }}>
             <Button
-              label={busyCompId === item.id ? "Menghapus..." : "Remove"}
+              label={busyCompId === item.id ? "Removing..." : "Remove"}
               variant="ghost"
               fullWidth
               onPress={() => handleRemoveFavorite(item)}
@@ -199,7 +199,7 @@ export default function MyCompetitionsScreen() {
     const status = STATUS_LABEL[item.status];
     return (
       <Card accentColor={accent}>
-        <CardHeader emoji={emoji} bg={bg} title={item.competitionName} subtitle={formatCurrency(item.fee)} onTitlePress={() => router.push({ pathname: "/(tabs)/competitions/[id]", params: { id: item.compId } })} />
+        <CardHeader emoji={emoji} bg={bg} title={item.competitionName} subtitle={formatCurrency(item.fee)} onTitlePress={() => router.push({ pathname: "/(tabs)/competitions/[id]", params: { id: item.compId, from: "my-competitions" } })} />
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm, marginTop: Spacing.md }}>
           {status ? <Pill label={status.label} tone={status.tone} size="sm" /> : null}
           {item.registrationNumber ? (
@@ -208,7 +208,7 @@ export default function MyCompetitionsScreen() {
         </View>
         {(item.status === "pending_payment" || item.status === "registered") ? (
           <Text style={[Type.bodySm, { marginTop: Spacing.md }]}>
-            Completedkan pembayaran untuk mengirim pendaftaran.
+            Complete payment to submit your registration.
           </Text>
         ) : null}
         {item.status === "pending_review" ? (
@@ -241,7 +241,7 @@ export default function MyCompetitionsScreen() {
               variant="secondary"
               fullWidth
               onPress={() =>
-                router.push({ pathname: "/(tabs)/competitions/[id]", params: { id: item.compId } })
+                router.push({ pathname: "/(tabs)/competitions/[id]", params: { id: item.compId, from: "my-competitions" } })
               }
             />
           )}
@@ -257,9 +257,9 @@ export default function MyCompetitionsScreen() {
     const emoji = CategoryEmoji[cat ?? ""] ?? "🏅";
     return (
       <Card accentColor={accent}>
-        <CardHeader emoji={emoji} bg={bg} title={item.competitionName} subtitle={formatCurrency(item.fee)} onTitlePress={() => router.push({ pathname: "/(tabs)/competitions/[id]", params: { id: item.compId } })} />
+        <CardHeader emoji={emoji} bg={bg} title={item.competitionName} subtitle={formatCurrency(item.fee)} onTitlePress={() => router.push({ pathname: "/(tabs)/competitions/[id]", params: { id: item.compId, from: "my-competitions" } })} />
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm, marginTop: Spacing.md }}>
-          <Pill label="✓ Bergabung" tone="success" size="sm" />
+          <Pill label="✓ Joined" tone="success" size="sm" />
           {item.registrationNumber ? <Pill label={item.registrationNumber} tone="brand" size="sm" /> : null}
         </View>
         <Text style={[Type.bodySm, { marginTop: Spacing.md }]}>
@@ -305,19 +305,17 @@ export default function MyCompetitionsScreen() {
                 accessibilityRole="tab"
                 accessibilityState={{ selected: active }}
               >
-                <Text style={{ fontSize: 14 }}>{tab.emoji}</Text>
                 <Text
-                  style={{
-                    ...Type.label,
-                    color: active ? Brand.primary : TextColor.secondary,
-                    fontSize: 13,
-                  }}
+                  style={[styles.tabLabel, active && styles.tabLabelActive]}
+                  numberOfLines={1}
                 >
                   {tab.label}
                 </Text>
                 {count > 0 ? (
-                  <View style={[styles.countDot, active && { backgroundColor: Brand.primary }]}>
-                    <Text style={[styles.countText, active && { color: "#FFFFFF" }]}>{count}</Text>
+                  <View style={[styles.countDot, active && styles.countDotActive]}>
+                    <Text style={[styles.countText, active && styles.countTextActive]}>
+                      {count}
+                    </Text>
                   </View>
                 ) : null}
               </Pressable>
@@ -412,7 +410,7 @@ const styles = StyleSheet.create({
   tabBar: {
     flexDirection: "row",
     backgroundColor: Surface.cardAlt,
-    borderRadius: Radius.lg,
+    borderRadius: Radius.pill,
     padding: 4,
     marginTop: Spacing.lg,
     marginBottom: Spacing.lg,
@@ -420,30 +418,47 @@ const styles = StyleSheet.create({
   },
   tabBtn: {
     flex: 1,
-    minHeight: 44,
-    borderRadius: Radius.md,
+    minHeight: 40,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: Radius.pill,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
-    gap: Spacing.xs,
+    gap: 6,
   },
   tabBtnActive: {
     backgroundColor: Surface.card,
     ...Shadow.sm,
   },
+  tabLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: TextColor.secondary,
+    letterSpacing: 0.1,
+  },
+  tabLabelActive: {
+    color: Brand.primary,
+  },
   countDot: {
-    minWidth: 22,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: Brand.primarySoft,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#DBE2FE",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 5,
+    paddingHorizontal: 6,
+  },
+  countDotActive: {
+    backgroundColor: Brand.primary,
   },
   countText: {
     color: Brand.primary,
     fontSize: 11,
-    fontWeight: "800",
+    fontWeight: "700",
+    lineHeight: 14,
+  },
+  countTextActive: {
+    color: "#FFFFFF",
   },
   listContent: {
     paddingHorizontal: Spacing.xl,

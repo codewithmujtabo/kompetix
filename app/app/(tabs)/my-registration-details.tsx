@@ -26,7 +26,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 function formatDate(date?: string | null) {
   if (!date) return "-";
-  return new Date(date).toLocaleString("id-ID", {
+  return new Date(date).toLocaleString("en-US", {
     day: "numeric",
     month: "long",
     year: "numeric",
@@ -98,7 +98,7 @@ export default function MyRegistrationDetailsScreen() {
           </Text>
           <View style={{ marginTop: Spacing.lg, flexDirection: "row", gap: Spacing.sm }}>
             <Pill
-              label={registration.status === "completed" ? "✓ Completed" : "✓ Approved / Bergabung"}
+              label={registration.status === "completed" ? "✓ Completed" : "✓ Approved / Joined"}
               tone="success"
             />
             {registration.registrationNumber ? (
@@ -130,7 +130,7 @@ export default function MyRegistrationDetailsScreen() {
         </Card>
 
         <Card>
-          <Text style={Type.h3}>Round & Jadwal</Text>
+          <Text style={Type.h3}>Round & Schedule</Text>
           {competition.rounds.length > 0 ? (
             <View style={{ marginTop: Spacing.md, gap: Spacing.md }}>
               {competition.rounds.map((round) => (
@@ -145,7 +145,7 @@ export default function MyRegistrationDetailsScreen() {
                   <View style={{ marginTop: Spacing.md, gap: Spacing.sm }}>
                     <Row label="Starts" value={formatDate(round.startDate)} />
                     <Row label="Exam" value={formatDate(round.examDate)} />
-                    <Row label="Lokasi/Platform" value={round.location?.trim() || "-"} />
+                    <Row label="Location/Platform" value={round.location?.trim() || "-"} />
                   </View>
                 </View>
               ))}

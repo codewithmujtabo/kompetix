@@ -35,7 +35,7 @@ function formatPrice(fee: number) {
 
 function formatDate(d: string | null) {
   if (!d) return "-";
-  return new Date(d).toLocaleDateString("id-ID", {
+  return new Date(d).toLocaleDateString("en-US", {
     day: "numeric",
     month: "long",
     year: "numeric",
@@ -54,7 +54,7 @@ const STATUS_PILL: Record<string, { label: string; tone: any }> = {
 };
 
 export default function CompetitionDetailPage() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, from } = useLocalSearchParams<{ id: string; from?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user, registrations, registerCompetition } = useUser();
@@ -99,6 +99,18 @@ export default function CompetitionDetailPage() {
   }, [id]);
 
   const handleBack = () => {
+    if (from === "my-competitions") {
+      router.replace("/(tabs)/my-competitions");
+      return;
+    }
+    if (from === "notifications") {
+      router.replace("/(tabs)/notifications");
+      return;
+    }
+    if (from === "history") {
+      router.replace("/(tabs)/profile/history");
+      return;
+    }
     if (router.canGoBack()) router.back();
     else router.push("/(tabs)/competitions");
   };
@@ -283,7 +295,7 @@ export default function CompetitionDetailPage() {
           {activeTab === "overview" ? (
             <View style={{ gap: Spacing.lg }}>
               <Card>
-                <Text style={Type.h3}>About Kompetisi</Text>
+                <Text style={Type.h3}>About Competition</Text>
                 <Text style={[Type.body, { marginTop: Spacing.sm }]}>{comp.description}</Text>
               </Card>
 
@@ -298,7 +310,7 @@ export default function CompetitionDetailPage() {
 
               {cats.length > 1 ? (
                 <Card>
-                  <Text style={Type.h3}>Kategori</Text>
+                  <Text style={Type.h3}>Categories</Text>
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm, marginTop: Spacing.md }}>
                     {cats.map((cat) => (
                       <Pill key={cat} label={cat} tone="brand" />
