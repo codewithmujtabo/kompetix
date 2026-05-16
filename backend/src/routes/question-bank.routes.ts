@@ -243,10 +243,14 @@ type QuestionType = (typeof QUESTION_TYPES)[number];
 
 async function loadQuestion(id: string) {
   const q = await pool.query(
-    `SELECT id, comp_id, code, writer_id, approver_id, level, grades, type,
-            cognitive, approved_at, content, explanation, status, is_bonus,
-            created_at, updated_at
-       FROM questions WHERE id = $1 AND deleted_at IS NULL`,
+    `SELECT q.id, q.comp_id, q.code, q.writer_id, q.approver_id, q.level, q.grades,
+            q.type, q.cognitive, q.approved_at, q.content, q.explanation, q.status,
+            q.is_bonus, q.created_at, q.updated_at,
+            w.full_name AS writer_name, a.full_name AS approver_name
+       FROM questions q
+       JOIN users w ON w.id = q.writer_id
+       LEFT JOIN users a ON a.id = q.approver_id
+      WHERE q.id = $1 AND q.deleted_at IS NULL`,
     [id]
   );
   if (q.rows.length === 0) return null;
@@ -265,7 +269,9 @@ async function loadQuestion(id: string) {
     compId: row.comp_id,
     code: row.code,
     writerId: row.writer_id,
+    writerName: row.writer_name ?? null,
     approverId: row.approver_id ?? null,
+    approverName: row.approver_name ?? null,
     approvedAt: row.approved_at ?? null,
     type: row.type,
     level: row.level ?? null,
@@ -307,8 +313,10 @@ router.get("/question-bank/questions", async (req: Request, res: Response) => {
     }
     const r = await pool.query(
       `SELECT q.id, q.code, q.type, q.level, q.grades, q.status, q.is_bonus,
-              q.content, q.writer_id, q.created_at, q.updated_at
+              q.content, q.writer_id, q.created_at, q.updated_at,
+              w.full_name AS writer_name
          FROM questions q
+         JOIN users w ON w.id = q.writer_id
         WHERE ${where}
         ORDER BY q.created_at DESC`,
       params
@@ -324,6 +332,7 @@ router.get("/question-bank/questions", async (req: Request, res: Response) => {
         isBonus: q.is_bonus,
         content: q.content ?? "",
         writerId: q.writer_id,
+        writerName: q.writer_name ?? null,
         createdAt: q.created_at,
         updatedAt: q.updated_at,
       }))
@@ -540,6 +549,311 @@ router.delete(
     } catch (err) {
       console.error("Delete question error:", err);
       res.status(500).json({ message: "Failed to delete question" });
+    }
+  }
+);
+
+// ── Review workflow (Wave 6 Phase 2) ──────────────────────────────────────
+// Editorial state machine: draft → submitted → approved. A question_maker
+// authors; a *different* question_maker proofreads + approves (no self-review).
+// "Send back" returns a submitted question to draft with a required comment,
+// recorded as a proofread.
+
+function mapProofreadRow(r: any) {
+  return {
+    id: r.id,
+    questionId: r.question_id,
+    userId: r.user_id,
+    reviewerName: r.reviewer_name ?? null,
+    level: r.level ?? null,
+    cognitive: r.cognitive ?? null,
+    answerId: r.answer_id ?? null,
+    shortAnswer: r.short_answer ?? null,
+    explanation: r.explanation ?? null,
+    comment: r.comment ?? null,
+    doneAt: r.done_at ?? null,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+// Normalises the optional reviewer-assessment fields shared by the proofread
+// endpoints and the approve / send-back actions.
+function parseProofreadBody(body: any) {
+  return {
+    level: typeof body?.level === "string" ? body.level.trim() || null : null,
+    cognitive: typeof body?.cognitive === "string" ? body.cognitive.trim() || null : null,
+    answerId: typeof body?.answerId === "string" && body.answerId ? body.answerId : null,
+    shortAnswer: typeof body?.shortAnswer === "string" ? body.shortAnswer.trim() || null : null,
+    explanation: typeof body?.explanation === "string" ? body.explanation.trim() || null : null,
+    comment: typeof body?.comment === "string" ? body.comment.trim() || null : null,
+  };
+}
+
+// If an answerId is supplied it must be a live answer of this question.
+async function answerValidForQuestion(answerId: string | null, questionId: string): Promise<boolean> {
+  if (!answerId) return true;
+  const r = await pool.query(
+    `SELECT 1 FROM answers WHERE id = $1 AND question_id = $2 AND deleted_at IS NULL`,
+    [answerId, questionId]
+  );
+  return r.rows.length > 0;
+}
+
+// GET /api/question-bank/questions/:id/proofreads — review history, newest first.
+router.get("/question-bank/questions/:id/proofreads", async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const question = await loadQuestion(id);
+    if (!question || !(await hasCompAccess(req.userId!, question.compId))) {
+      res.status(404).json({ message: "Question not found" });
+      return;
+    }
+    const r = await pool.query(
+      `SELECT p.id, p.question_id, p.user_id, p.level, p.cognitive, p.answer_id,
+              p.short_answer, p.explanation, p.comment, p.done_at,
+              p.created_at, p.updated_at, u.full_name AS reviewer_name
+         FROM proofreads p
+         JOIN users u ON u.id = p.user_id
+        WHERE p.question_id = $1 AND p.deleted_at IS NULL
+        ORDER BY p.created_at DESC`,
+      [id]
+    );
+    res.json(r.rows.map(mapProofreadRow));
+  } catch (err) {
+    console.error("List proofreads error:", err);
+    res.status(500).json({ message: "Failed to load proofreads" });
+  }
+});
+
+// POST /api/question-bank/questions/:id/proofreads — record a review pass.
+// No self-review: the writer cannot proofread their own question.
+router.post(
+  "/question-bank/questions/:id/proofreads",
+  audit({ action: "question_bank.proofread.create", resourceType: "proofread", resourceIdParam: "id" }),
+  async (req: Request, res: Response) => {
+    try {
+      const id = String(req.params.id);
+      const question = await loadQuestion(id);
+      if (!question || !(await hasCompAccess(req.userId!, question.compId))) {
+        res.status(404).json({ message: "Question not found" });
+        return;
+      }
+      if (question.writerId === req.userId) {
+        res.status(403).json({ message: "You cannot proofread your own question" });
+        return;
+      }
+      const p = parseProofreadBody(req.body);
+      if (!(await answerValidForQuestion(p.answerId, id))) {
+        res.status(400).json({ message: "answerId is not an option of this question" });
+        return;
+      }
+      const doneAt = req.body?.done ? new Date() : null;
+      const inserted = await pool.query(
+        `INSERT INTO proofreads
+           (comp_id, question_id, user_id, level, cognitive, answer_id, short_answer, explanation, comment, done_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         RETURNING id, question_id, user_id, level, cognitive, answer_id, short_answer,
+                   explanation, comment, done_at, created_at, updated_at`,
+        [question.compId, id, req.userId, p.level, p.cognitive, p.answerId, p.shortAnswer, p.explanation, p.comment, doneAt]
+      );
+      res.status(201).json(mapProofreadRow(inserted.rows[0]));
+    } catch (err) {
+      console.error("Create proofread error:", err);
+      res.status(500).json({ message: "Failed to record proofread" });
+    }
+  }
+);
+
+// PUT /api/question-bank/questions/:id/proofreads/:proofreadId — edit own proofread.
+router.put(
+  "/question-bank/questions/:id/proofreads/:proofreadId",
+  audit({ action: "question_bank.proofread.update", resourceType: "proofread", resourceIdParam: "proofreadId" }),
+  async (req: Request, res: Response) => {
+    try {
+      const id = String(req.params.id);
+      const proofreadId = String(req.params.proofreadId);
+      const question = await loadQuestion(id);
+      if (!question || !(await hasCompAccess(req.userId!, question.compId))) {
+        res.status(404).json({ message: "Question not found" });
+        return;
+      }
+      const existing = await pool.query(
+        `SELECT user_id FROM proofreads
+          WHERE id = $1 AND question_id = $2 AND deleted_at IS NULL`,
+        [proofreadId, id]
+      );
+      if (existing.rows.length === 0) {
+        res.status(404).json({ message: "Proofread not found" });
+        return;
+      }
+      if (existing.rows[0].user_id !== req.userId) {
+        res.status(403).json({ message: "Only the proofread's author can edit it" });
+        return;
+      }
+      const p = parseProofreadBody(req.body);
+      if (!(await answerValidForQuestion(p.answerId, id))) {
+        res.status(400).json({ message: "answerId is not an option of this question" });
+        return;
+      }
+      const doneAt = req.body?.done ? new Date() : null;
+      const updated = await pool.query(
+        `UPDATE proofreads
+            SET level=$1, cognitive=$2, answer_id=$3, short_answer=$4, explanation=$5,
+                comment=$6, done_at=$7, updated_at=now()
+          WHERE id=$8
+        RETURNING id, question_id, user_id, level, cognitive, answer_id, short_answer,
+                  explanation, comment, done_at, created_at, updated_at`,
+        [p.level, p.cognitive, p.answerId, p.shortAnswer, p.explanation, p.comment, doneAt, proofreadId]
+      );
+      res.json(mapProofreadRow(updated.rows[0]));
+    } catch (err) {
+      console.error("Update proofread error:", err);
+      res.status(500).json({ message: "Failed to update proofread" });
+    }
+  }
+);
+
+// POST /api/question-bank/questions/:id/submit — draft → submitted (writer only).
+router.post(
+  "/question-bank/questions/:id/submit",
+  audit({ action: "question_bank.question.submit", resourceType: "question", resourceIdParam: "id" }),
+  async (req: Request, res: Response) => {
+    try {
+      const id = String(req.params.id);
+      const question = await loadQuestion(id);
+      if (!question || !(await hasCompAccess(req.userId!, question.compId))) {
+        res.status(404).json({ message: "Question not found" });
+        return;
+      }
+      if (question.writerId !== req.userId) {
+        res.status(403).json({ message: "Only the question's writer can submit it" });
+        return;
+      }
+      if (question.status !== "draft") {
+        res.status(409).json({ message: "Only draft questions can be submitted" });
+        return;
+      }
+      await pool.query(
+        "UPDATE questions SET status='submitted', updated_at=now() WHERE id=$1",
+        [id]
+      );
+      res.json(await loadQuestion(id));
+    } catch (err) {
+      console.error("Submit question error:", err);
+      res.status(500).json({ message: "Failed to submit question" });
+    }
+  }
+);
+
+// POST /api/question-bank/questions/:id/approve — submitted → approved.
+// The reviewer must differ from the writer; an optional comment is recorded
+// as a proofread sign-off.
+router.post(
+  "/question-bank/questions/:id/approve",
+  audit({ action: "question_bank.question.approve", resourceType: "question", resourceIdParam: "id" }),
+  async (req: Request, res: Response) => {
+    const client = await pool.connect();
+    try {
+      const id = String(req.params.id);
+      const question = await loadQuestion(id);
+      if (!question || !(await hasCompAccess(req.userId!, question.compId))) {
+        res.status(404).json({ message: "Question not found" });
+        return;
+      }
+      if (question.writerId === req.userId) {
+        res.status(403).json({ message: "You cannot approve your own question" });
+        return;
+      }
+      if (question.status !== "submitted") {
+        res.status(409).json({ message: "Only submitted questions can be approved" });
+        return;
+      }
+      const p = parseProofreadBody(req.body);
+      if (!(await answerValidForQuestion(p.answerId, id))) {
+        res.status(400).json({ message: "answerId is not an option of this question" });
+        return;
+      }
+      const hasReview = p.level || p.cognitive || p.answerId || p.shortAnswer || p.explanation || p.comment;
+
+      await client.query("BEGIN");
+      await client.query(
+        `UPDATE questions
+            SET status='approved', approver_id=$1, approved_at=now(), updated_at=now()
+          WHERE id=$2`,
+        [req.userId, id]
+      );
+      if (hasReview) {
+        await client.query(
+          `INSERT INTO proofreads
+             (comp_id, question_id, user_id, level, cognitive, answer_id, short_answer, explanation, comment, done_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, now())`,
+          [question.compId, id, req.userId, p.level, p.cognitive, p.answerId, p.shortAnswer, p.explanation, p.comment]
+        );
+      }
+      await client.query("COMMIT");
+      res.json(await loadQuestion(id));
+    } catch (err) {
+      await client.query("ROLLBACK");
+      console.error("Approve question error:", err);
+      res.status(500).json({ message: "Failed to approve question" });
+    } finally {
+      client.release();
+    }
+  }
+);
+
+// POST /api/question-bank/questions/:id/send-back — submitted → draft.
+// Requires a comment; the comment is recorded as a proofread.
+router.post(
+  "/question-bank/questions/:id/send-back",
+  audit({ action: "question_bank.question.send_back", resourceType: "question", resourceIdParam: "id" }),
+  async (req: Request, res: Response) => {
+    const client = await pool.connect();
+    try {
+      const id = String(req.params.id);
+      const question = await loadQuestion(id);
+      if (!question || !(await hasCompAccess(req.userId!, question.compId))) {
+        res.status(404).json({ message: "Question not found" });
+        return;
+      }
+      if (question.writerId === req.userId) {
+        res.status(403).json({ message: "You cannot review your own question" });
+        return;
+      }
+      if (question.status !== "submitted") {
+        res.status(409).json({ message: "Only submitted questions can be sent back" });
+        return;
+      }
+      const p = parseProofreadBody(req.body);
+      if (!p.comment) {
+        res.status(400).json({ message: "A comment explaining the changes needed is required" });
+        return;
+      }
+      if (!(await answerValidForQuestion(p.answerId, id))) {
+        res.status(400).json({ message: "answerId is not an option of this question" });
+        return;
+      }
+
+      await client.query("BEGIN");
+      await client.query(
+        "UPDATE questions SET status='draft', updated_at=now() WHERE id=$1",
+        [id]
+      );
+      await client.query(
+        `INSERT INTO proofreads
+           (comp_id, question_id, user_id, level, cognitive, answer_id, short_answer, explanation, comment, done_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, now())`,
+        [question.compId, id, req.userId, p.level, p.cognitive, p.answerId, p.shortAnswer, p.explanation, p.comment]
+      );
+      await client.query("COMMIT");
+      res.json(await loadQuestion(id));
+    } catch (err) {
+      await client.query("ROLLBACK");
+      console.error("Send-back question error:", err);
+      res.status(500).json({ message: "Failed to send question back" });
+    } finally {
+      client.release();
     }
   }
 );
