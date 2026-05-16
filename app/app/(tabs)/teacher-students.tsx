@@ -5,7 +5,16 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Brand } from "@/constants/theme";
+import {
+  Brand,
+  FontFamily,
+  Radius,
+  Shadow,
+  Spacing,
+  Surface,
+  Text as TextColor,
+  Type,
+} from "@/constants/theme";
 import { router } from "expo-router";
 import { useUser } from "@/context/AuthContext";
 import { getMyStudents, linkStudent, unlinkStudent, type Student } from "@/services/teachers.service";
@@ -113,7 +122,7 @@ export default function TeacherStudentsScreen() {
         disabled={removingId === item.id}
       >
         {removingId === item.id
-          ? <ActivityIndicator size="small" color="#EF4444" />
+          ? <ActivityIndicator size="small" color={Brand.error} />
           : <Text style={styles.removeBtnText}>×</Text>
         }
       </TouchableOpacity>
@@ -144,7 +153,7 @@ export default function TeacherStudentsScreen() {
           <TextInput
             style={styles.addInput}
             placeholder="Student email address"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={TextColor.tertiary}
             value={addEmail}
             onChangeText={setAddEmail}
             keyboardType="email-address"
@@ -159,7 +168,7 @@ export default function TeacherStudentsScreen() {
             disabled={adding || !addEmail.trim()}
           >
             {adding
-              ? <ActivityIndicator size="small" color="#fff" />
+              ? <ActivityIndicator size="small" color={TextColor.inverse} />
               : <Text style={styles.addConfirmBtnText}>Add</Text>
             }
           </TouchableOpacity>
@@ -171,7 +180,7 @@ export default function TeacherStudentsScreen() {
         <TextInput
           style={styles.searchInput}
           placeholder="Search by name or email…"
-          placeholderTextColor="#94A3B8"
+          placeholderTextColor={TextColor.tertiary}
           value={searchQuery}
           onChangeText={setSearchQuery}
           returnKeyType="search"
@@ -216,57 +225,104 @@ export default function TeacherStudentsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container:  { flex: 1, backgroundColor: "#F8FAFC" },
-  header:     { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12 },
-  title:      { fontSize: 24, fontWeight: "800", color: "#0F172A" },
-  subtitle:   { marginTop: 4, fontSize: 13, color: "#64748B" },
-  addButton:  { backgroundColor: Brand.primary, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
-  addButtonActive: { backgroundColor: "#64748B" },
-  addButtonText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+  container: { flex: 1, backgroundColor: Surface.background },
+  header: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
+  },
+  title: { ...Type.displayMd },
+  subtitle: { ...Type.bodySm, marginTop: 4 },
+  addButton: {
+    backgroundColor: Brand.primary,
+    borderRadius: Radius.pill,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm + 2,
+    ...Shadow.sm,
+  },
+  addButtonActive: { backgroundColor: TextColor.secondary },
+  addButtonText: { color: TextColor.inverse, fontFamily: FontFamily.bodyBold, fontSize: 13 },
   addRow: {
-    flexDirection: "row", gap: 10, paddingHorizontal: 20, paddingBottom: 12,
+    flexDirection: "row",
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: Spacing.md,
   },
   addInput: {
-    flex: 1, backgroundColor: "#fff", borderWidth: 1.5, borderColor: Brand.primary,
-    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: "#0F172A",
+    flex: 1,
+    backgroundColor: Surface.card,
+    borderWidth: 1.5,
+    borderColor: Brand.primary,
+    borderRadius: Radius.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    fontSize: 14,
+    color: TextColor.primary,
   },
-  addConfirmBtn: { backgroundColor: Brand.primary, borderRadius: 10, paddingHorizontal: 16, justifyContent: "center" },
+  addConfirmBtn: {
+    backgroundColor: Brand.primary,
+    borderRadius: Radius.lg,
+    paddingHorizontal: Spacing.lg,
+    justifyContent: "center",
+  },
   addConfirmBtnDisabled: { opacity: 0.5 },
-  addConfirmBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  addConfirmBtnText: { color: TextColor.inverse, fontFamily: FontFamily.bodyBold, fontSize: 14 },
   searchRow: {
-    flexDirection: "row", alignItems: "center", marginHorizontal: 20, marginBottom: 14,
-    backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: "#E2E8F0",
-    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: Spacing.xl,
+    marginBottom: Spacing.md,
+    backgroundColor: Surface.card,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Surface.border,
+    paddingHorizontal: Spacing.md,
+    ...Shadow.sm,
   },
-  searchInput: { flex: 1, paddingVertical: 11, fontSize: 14, color: "#0F172A" },
-  clearBtn:    { padding: 4 },
-  clearBtnText: { fontSize: 14, color: "#94A3B8" },
-  centered:   { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 },
-  emptyEmoji: { fontSize: 48, marginBottom: 12 },
-  emptyTitle: { fontSize: 18, fontWeight: "700", color: "#0F172A", textAlign: "center", marginBottom: 8 },
-  emptyBody:  { fontSize: 14, color: "#64748B", textAlign: "center", lineHeight: 22 },
-  listContent: { paddingHorizontal: 20, paddingBottom: 24 },
+  searchInput: { flex: 1, paddingVertical: Spacing.md, fontSize: 14, color: TextColor.primary },
+  clearBtn: { padding: 4 },
+  clearBtnText: { fontSize: 14, color: TextColor.tertiary },
+  centered: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: Spacing["3xl"] },
+  emptyEmoji: { fontSize: 48, marginBottom: Spacing.md },
+  emptyTitle: { ...Type.h2, textAlign: "center", marginBottom: Spacing.sm },
+  emptyBody: { ...Type.body, color: TextColor.secondary, textAlign: "center" },
+  listContent: { paddingHorizontal: Spacing.xl, paddingBottom: Spacing["2xl"] },
   studentCard: {
-    flexDirection: "row", backgroundColor: "#fff", borderRadius: 16,
-    padding: 14, marginBottom: 12, alignItems: "flex-start",
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
+    flexDirection: "row",
+    backgroundColor: Surface.card,
+    borderRadius: Radius["2xl"],
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+    alignItems: "flex-start",
+    ...Shadow.md,
   },
   avatar: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: Brand.primary + "20", alignItems: "center", justifyContent: "center",
-    marginRight: 12,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Brand.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: Spacing.md,
   },
-  avatarText: { fontSize: 18, fontWeight: "800", color: Brand.primary },
+  avatarText: { fontSize: 18, fontFamily: FontFamily.displayExtra, color: Brand.primary },
   studentInfo: { flex: 1 },
-  studentName:  { fontSize: 15, fontWeight: "700", color: "#0F172A" },
-  studentEmail: { fontSize: 12, color: "#64748B", marginTop: 2 },
-  studentMeta:  { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6 },
+  studentName: { ...Type.title, fontSize: 15 },
+  studentEmail: { ...Type.caption, marginTop: 2 },
+  studentMeta: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6 },
   metaTag: {
-    fontSize: 11, color: "#4338CA", backgroundColor: "#EEF2FF",
-    borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, fontWeight: "600",
+    fontSize: 11,
+    color: Brand.primary,
+    backgroundColor: Brand.primarySoft,
+    borderRadius: Radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    fontFamily: FontFamily.bodySemi,
   },
-  regCount:  { marginTop: 6, fontSize: 12, color: "#64748B" },
-  removeBtn: { padding: 8 },
-  removeBtnText: { fontSize: 22, color: "#CBD5E1", fontWeight: "300" },
+  regCount: { marginTop: 6, ...Type.caption },
+  removeBtn: { padding: Spacing.sm },
+  removeBtnText: { fontSize: 24, color: TextColor.tertiary, fontFamily: FontFamily.bodyRegular },
 });
