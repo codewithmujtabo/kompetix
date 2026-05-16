@@ -12,7 +12,16 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { Brand } from "@/constants/theme";
+import {
+  Brand,
+  FontFamily,
+  Radius,
+  Shadow,
+  Spacing,
+  Surface,
+  Text as TextColor,
+  Type,
+} from "@/constants/theme";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { apiRequest } from "@/services/api";
 
@@ -142,7 +151,7 @@ export default function SchoolDashboardScreen() {
           <TextInput
             style={styles.searchInput}
             placeholder="Search students..."
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={TextColor.tertiary}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
@@ -223,7 +232,7 @@ export default function SchoolDashboardScreen() {
               <View
                 style={[
                   styles.statusBadge,
-                  { backgroundColor: reg.status === "paid" ? "#10B981" : "#F59E0B" },
+                  { backgroundColor: reg.status === "paid" ? Brand.success : Brand.navy },
                 ]}
               >
                 <Text style={styles.statusText}>{reg.status}</Text>
@@ -343,114 +352,93 @@ export default function SchoolDashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F8FAFC",
-  },
-  scrollContent: {
-    padding: 16,
-  },
+  container: { flex: 1, backgroundColor: Surface.background },
+  scrollContent: { padding: Spacing.xl },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 16,
+    marginBottom: Spacing.lg,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#fff",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Surface.card,
     alignItems: "center",
     justifyContent: "center",
+    ...Shadow.sm,
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1E293B",
-  },
+  headerTitle: { ...Type.h2 },
   exportButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#fff",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Surface.card,
     alignItems: "center",
     justifyContent: "center",
+    ...Shadow.sm,
   },
-  loader: {
-    marginVertical: 20,
-  },
+  loader: { marginVertical: Spacing.xl },
   schoolCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+    backgroundColor: Brand.primary,
+    borderRadius: Radius["2xl"],
+    padding: Spacing.xl,
+    marginBottom: Spacing.lg,
+    ...Shadow.lg,
   },
-  schoolName: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1E293B",
-    marginBottom: 4,
-  },
-  schoolNpsn: {
-    fontSize: 14,
-    color: "#64748B",
-    marginBottom: 2,
-  },
-  schoolLocation: {
-    fontSize: 14,
-    color: "#94A3B8",
-  },
+  schoolName: { ...Type.h1, color: "#FFFFFF", marginBottom: 4 },
+  schoolNpsn: { ...Type.body, color: "rgba(255,255,255,0.85)", marginBottom: 2 },
+  schoolLocation: { ...Type.bodySm, color: "rgba(255,255,255,0.75)" },
   tabs: {
     flexDirection: "row",
-    backgroundColor: "#fff",
-    borderRadius: 12,
+    backgroundColor: Surface.cardAlt,
+    borderRadius: Radius.lg,
     padding: 4,
-    marginBottom: 16,
+    marginBottom: Spacing.lg,
   },
   tab: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: Spacing.md,
     alignItems: "center",
-    borderRadius: 8,
+    borderRadius: Radius.md,
   },
   tabActive: {
-    backgroundColor: Brand.primary,
+    backgroundColor: Surface.card,
+    ...Shadow.sm,
   },
-  tabText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#64748B",
-  },
-  tabTextActive: {
-    color: "#fff",
-  },
+  tabText: { ...Type.label, color: TextColor.tertiary },
+  tabTextActive: { color: Brand.primary },
   tabContent: {
-    marginBottom: 20,
+    marginBottom: Spacing.xl,
   },
   filterSection: {
-    marginBottom: 16,
+    marginBottom: Spacing.lg,
   },
   searchInput: {
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    color: "#1E293B",
-    marginBottom: 12,
+    backgroundColor: Surface.card,
+    borderWidth: 1,
+    borderColor: Surface.border,
+    borderRadius: Radius.lg,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    fontSize: 15,
+    fontFamily: FontFamily.bodyRegular,
+    color: TextColor.primary,
+    marginBottom: Spacing.md,
   },
   gradeFilters: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
+    gap: Spacing.sm,
   },
   gradeChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: "#fff",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs + 2,
+    borderRadius: Radius.pill,
+    backgroundColor: Surface.card,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: Surface.border,
   },
   gradeChipActive: {
     backgroundColor: Brand.primary,
@@ -458,126 +446,102 @@ const styles = StyleSheet.create({
   },
   gradeChipText: {
     fontSize: 12,
-    fontWeight: "600",
-    color: "#64748B",
+    fontFamily: FontFamily.bodySemi,
+    color: TextColor.secondary,
   },
   gradeChipTextActive: {
-    color: "#fff",
+    color: "#FFFFFF",
   },
   studentCard: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
+    backgroundColor: Surface.card,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Surface.border,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   studentInfo: {
     flex: 1,
   },
-  studentName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1E293B",
-    marginBottom: 2,
-  },
-  studentDetails: {
-    fontSize: 13,
-    color: "#64748B",
-    marginBottom: 2,
-  },
-  studentNisn: {
-    fontSize: 12,
-    color: "#94A3B8",
-  },
+  studentName: { ...Type.title, marginBottom: 2 },
+  studentDetails: { ...Type.bodySm, marginBottom: 2 },
+  studentNisn: { ...Type.caption },
   studentBadge: {
-    backgroundColor: "#F0F0FF",
-    borderRadius: 8,
-    padding: 8,
+    backgroundColor: Brand.primarySoft,
+    borderRadius: Radius.md,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
     alignItems: "center",
-    minWidth: 50,
+    minWidth: 54,
   },
   badgeText: {
     fontSize: 18,
-    fontWeight: "700",
+    fontFamily: FontFamily.displayBold,
     color: Brand.primary,
   },
-  badgeLabel: {
-    fontSize: 10,
-    color: "#64748B",
-    marginTop: 2,
-  },
+  badgeLabel: { ...Type.caption, marginTop: 2 },
   regCard: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
+    backgroundColor: Surface.card,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Surface.border,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   regInfo: {
     flex: 1,
   },
-  regStudent: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#1E293B",
-    marginBottom: 2,
-  },
-  regComp: {
-    fontSize: 14,
-    color: "#64748B",
-    marginBottom: 2,
-  },
-  regDetails: {
-    fontSize: 12,
-    color: "#94A3B8",
-  },
+  regStudent: { ...Type.title, marginBottom: 2 },
+  regComp: { ...Type.bodySm, marginBottom: 2 },
+  regDetails: { ...Type.caption },
   statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: Radius.sm,
   },
   statusText: {
     fontSize: 11,
-    fontWeight: "600",
-    color: "#fff",
+    fontFamily: FontFamily.bodyBold,
+    color: "#FFFFFF",
     textTransform: "uppercase",
   },
   statsGrid: {
     flexDirection: "row",
-    gap: 12,
-    marginBottom: 16,
+    gap: Spacing.md,
+    marginBottom: Spacing.lg,
   },
   statCard: {
     flex: 1,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 20,
+    backgroundColor: Surface.card,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Surface.border,
+    padding: Spacing.xl,
     alignItems: "center",
   },
   statValue: {
-    fontSize: 32,
-    fontWeight: "700",
+    fontSize: 30,
+    fontFamily: FontFamily.displayBold,
     color: Brand.primary,
     marginBottom: 4,
   },
-  statLabel: {
-    fontSize: 12,
-    color: "#64748B",
-  },
+  statLabel: { ...Type.caption },
   comingSoon: {
-    fontSize: 14,
-    color: "#94A3B8",
+    ...Type.bodySm,
+    color: TextColor.tertiary,
     textAlign: "center",
-    marginTop: 20,
+    marginTop: Spacing.xl,
   },
   emptyText: {
-    fontSize: 14,
-    color: "#94A3B8",
+    ...Type.bodySm,
+    color: TextColor.tertiary,
     textAlign: "center",
-    marginTop: 20,
+    marginTop: Spacing.xl,
   },
 });

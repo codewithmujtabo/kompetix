@@ -23,6 +23,7 @@ export interface Competition {
   participant_instructions?: string;
   created_by?: string;
   post_payment_redirect_url?: string;
+  kind?: 'native' | 'affiliated';
   created_at?: string;
   
   // Дополнительные поля для фронтенда (не из БД)
@@ -33,9 +34,32 @@ export interface Competition {
 export interface AuthUser {
   id: string;
   email: string;
-  full_name: string;
+  // Backend returns `fullName` (camelCase); legacy admin code reads `full_name`.
+  // Both forms appear depending on which fetch path populated the object.
+  full_name?: string;
+  fullName?: string;
+  phone?: string;
+  city?: string;
   role: string;
+  photoUrl?: string;
+  createdAt?: string;
   school_id?: string;
+  kid?: string;
+  // school_admin
+  schoolVerificationStatus?: 'pending_verification' | 'verified' | 'rejected';
+  schoolRejectionReason?: string;
+  // student
+  school?: string;
+  grade?: string;
+  nisn?: string;
+  // parent
+  childName?: string;
+  childSchool?: string;
+  childGrade?: string;
+  relationship?: string;
+  // teacher
+  subject?: string;
+  department?: string;
 }
 
 export interface Pagination {
