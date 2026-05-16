@@ -1372,4 +1372,123 @@ router.post("/payments/:id/refund", audit({ action: "admin.payment.refund", reso
   }
 });
 
+// ── Question-maker access management (Wave 6) ─────────────────────────────
+// Admins grant a question_maker per-competition access (+ the grades they may
+// author for) via the `accesses` table. A question_maker with no access row
+// for a competition cannot see or author its question bank.
+
+// GET /api/admin/question-makers — every question_maker, with an access count.
+router.get("/question-makers", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT u.id, u.full_name, u.email, u.kid,
+              COUNT(a.comp_id)::int AS access_count
+         FROM users u
+         LEFT JOIN accesses a ON a.user_id = u.id
+        WHERE u.role = 'question_maker' AND u.deleted_at IS NULL
+        GROUP BY u.id
+        ORDER BY u.full_name ASC`
+    );
+    res.json(
+      result.rows.map((u) => ({
+        id: u.id,
+        fullName: u.full_name,
+        email: u.email,
+        kid: u.kid,
+        accessCount: u.access_count,
+      }))
+    );
+  } catch (err) {
+    console.error("GET /admin/question-makers error:", err);
+    res.status(500).json({ message: "Failed to load question makers" });
+  }
+});
+
+// GET /api/admin/question-makers/:userId/accesses — one maker's competition grants.
+router.get("/question-makers/:userId/accesses", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT a.comp_id, a.grades, c.name AS comp_name
+         FROM accesses a
+         JOIN competitions c ON c.id = a.comp_id
+        WHERE a.user_id = $1
+        ORDER BY c.name ASC`,
+      [req.params.userId]
+    );
+    res.json(
+      result.rows.map((a) => ({
+        compId: a.comp_id,
+        competitionName: a.comp_name,
+        grades: Array.isArray(a.grades) ? a.grades : [],
+      }))
+    );
+  } catch (err) {
+    console.error("GET /admin/question-makers/:userId/accesses error:", err);
+    res.status(500).json({ message: "Failed to load accesses" });
+  }
+});
+
+// POST /api/admin/question-makers/:userId/accesses — grant / update access.
+router.post(
+  "/question-makers/:userId/accesses",
+  audit({ action: "admin.question_maker.access.grant", resourceType: "user", resourceIdParam: "userId" }),
+  async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const compId = String(req.body?.compId ?? "");
+      const grades = Array.isArray(req.body?.grades) ? req.body.grades.map(String) : [];
+      if (!compId) {
+        res.status(400).json({ message: "compId is required" });
+        return;
+      }
+      const u = await pool.query(
+        "SELECT 1 FROM users WHERE id = $1 AND role = 'question_maker' AND deleted_at IS NULL",
+        [userId]
+      );
+      if (u.rows.length === 0) {
+        res.status(404).json({ message: "Question maker not found" });
+        return;
+      }
+      const comp = await pool.query("SELECT 1 FROM competitions WHERE id = $1", [compId]);
+      if (comp.rows.length === 0) {
+        res.status(404).json({ message: "Competition not found" });
+        return;
+      }
+      await pool.query(
+        `INSERT INTO accesses (comp_id, user_id, grades)
+         VALUES ($1, $2, $3::jsonb)
+         ON CONFLICT (comp_id, user_id)
+         DO UPDATE SET grades = EXCLUDED.grades, updated_at = now()`,
+        [compId, userId, JSON.stringify(grades)]
+      );
+      res.status(201).json({ message: "Access granted" });
+    } catch (err) {
+      console.error("POST /admin/question-makers/:userId/accesses error:", err);
+      res.status(500).json({ message: "Failed to grant access" });
+    }
+  }
+);
+
+// DELETE /api/admin/question-makers/:userId/accesses/:compId — revoke access.
+router.delete(
+  "/question-makers/:userId/accesses/:compId",
+  audit({ action: "admin.question_maker.access.revoke", resourceType: "user", resourceIdParam: "userId" }),
+  async (req, res) => {
+    try {
+      const result = await pool.query(
+        "DELETE FROM accesses WHERE user_id = $1 AND comp_id = $2",
+        [req.params.userId, req.params.compId]
+      );
+      if ((result.rowCount ?? 0) === 0) {
+        res.status(404).json({ message: "Access not found" });
+        return;
+      }
+      res.json({ message: "Access revoked" });
+    } catch (err) {
+      console.error("DELETE /admin/question-makers/:userId/accesses/:compId error:", err);
+      res.status(500).json({ message: "Failed to revoke access" });
+    }
+  }
+);
+
 export default router;
