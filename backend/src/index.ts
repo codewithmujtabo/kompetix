@@ -28,6 +28,7 @@ import organizerRoutes from "./routes/organizer.routes";
 import regionsRoutes from "./routes/regions.routes";
 import favoritesRoutes from "./routes/favorites.routes";
 import historicalRoutes from "./routes/historical.routes";
+import competitionFlowsRoutes from "./routes/competition-flows.routes";
 import { initializeCronJobs } from "./services/cron.service";
 import { verifySignedUrlToken } from "./services/storage.service";
 import fs from "fs";
@@ -36,11 +37,15 @@ const app = express();
 
 // CORS: allow credentials so the web frontend can send the auth cookie.
 // Origin list reads CORS_ORIGINS (comma-separated) from env, falls back to
-// localhost dev hosts.
+// localhost dev hosts. In non-prod we also accept any http://localhost:<port>
+// / http://127.0.0.1:<port> so devs can run Next.js on any free port without
+// editing env files.
 const corsOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:3000,http://localhost:3001")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
+const isDev = (process.env.NODE_ENV ?? "development") !== "production";
+const localhostDev = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 app.use(
   cors({
     origin: (origin, cb) => {
@@ -48,7 +53,11 @@ app.use(
       // Mobile app fetches don't send Origin either.
       if (!origin) return cb(null, true);
       if (corsOrigins.includes(origin)) return cb(null, true);
-      cb(new Error(`Origin ${origin} not allowed by CORS`));
+      if (isDev && localhostDev.test(origin)) return cb(null, true);
+      // Reject cleanly (no `Access-Control-Allow-Origin` header) instead of
+      // throwing — throwing reaches the error handler and surfaces as a
+      // misleading "Internal server error" to the client.
+      return cb(null, false);
     },
     credentials: true,
   })
@@ -107,6 +116,9 @@ app.use("/api/organizers", organizerRoutes);
 app.use("/api/regions", regionsRoutes);
 app.use("/api/favorites", favoritesRoutes);
 app.use("/api/historical", historicalRoutes);
+// Step-flow engine — owns /competitions/:id/flow, /registrations/:id/flow-progress,
+// and /admin/competitions/:id/flow* (mounted at /api with full sub-paths).
+app.use("/api", competitionFlowsRoutes);
 
 // Sentry error handler must come before our own error handler
 Sentry.setupExpressErrorHandler(app);
