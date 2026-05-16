@@ -46,6 +46,8 @@ function destinationFor(role: string): string {
     case 'student':
     case 'parent':
       return '/competitions';
+    case 'question_maker':
+      return '/question-bank';
     default:
       return '/dashboard';
   }
