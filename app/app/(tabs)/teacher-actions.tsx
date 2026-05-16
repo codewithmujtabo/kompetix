@@ -11,16 +11,25 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { Brand } from "@/constants/theme";
+import { ScreenHeader } from "@/components/ui";
+import {
+  Brand,
+  FontFamily,
+  Radius,
+  Shadow,
+  Spacing,
+  Surface,
+  Text as TextColor,
+  Type,
+} from "@/constants/theme";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { getUpcomingDeadlines, type Deadline } from "@/services/teachers.service";
+import { getUpcomingDeadlines } from "@/services/teachers.service";
 
 export default function TeacherActionsScreen() {
   const { data: upcomingDeadlines, isLoading: isLoadingDeadlines } = useQuery({
     queryKey: ["upcomingDeadlines"],
     queryFn: getUpcomingDeadlines,
   });
-  const recentActivities: Deadline[] = [];
 
   const quickActions = [
     {
@@ -28,7 +37,7 @@ export default function TeacherActionsScreen() {
       icon: "trophy.fill",
       title: "Competitions",
       subtitle: "See which competitions your students joined",
-      color: "#4F46E5",
+      color: Brand.primary,
       onPress: () => router.push("/(tabs)/teacher-analytics"),
     },
     {
@@ -36,7 +45,7 @@ export default function TeacherActionsScreen() {
       icon: "chart.bar.fill",
       title: "View Reports",
       subtitle: "Detailed performance overview",
-      color: "#8B5CF6",
+      color: Brand.sky,
       onPress: () => router.push("/(tabs)/teacher-analytics"),
     },
     {
@@ -44,7 +53,7 @@ export default function TeacherActionsScreen() {
       icon: "calendar.badge.clock",
       title: "Deadlines",
       subtitle: "Competitions closing soon",
-      color: "#F59E0B",
+      color: Brand.coral,
       onPress: () => router.push("/(tabs)/teacher-dashboard"),
     },
     {
@@ -52,30 +61,15 @@ export default function TeacherActionsScreen() {
       icon: "person.3.fill",
       title: "My Students",
       subtitle: "View and manage your roster",
-      color: "#10B981",
+      color: Brand.success,
       onPress: () => router.push("/(tabs)/teacher-students"),
     },
   ];
 
   return (
     <SafeAreaView style={styles.container}>
+      <ScreenHeader title="Quick Actions" subtitle="Fast access to common tasks" onBack={() => router.back()} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Back Button */}
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.backButtonText}>← Back</Text>
-        </TouchableOpacity>
-
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Quick Actions</Text>
-          <Text style={styles.headerSubtitle}>
-            Fast access to common tasks
-          </Text>
-        </View>
 
         {/* Web portal banner */}
         <TouchableOpacity
@@ -155,7 +149,7 @@ export default function TeacherActionsScreen() {
               </View>
 
               <View style={styles.deadlineFooter}>
-                <IconSymbol name="person.2.fill" size={16} color="#64748B" />
+                <IconSymbol name="person.2.fill" size={16} color={TextColor.tertiary} />
                 <Text style={styles.deadlineCount}>
                   {item.registeredCount} students registered
                 </Text>
@@ -188,195 +182,97 @@ export default function TeacherActionsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: Surface.background,
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  backButton: {
-    alignSelf: "flex-start",
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    marginBottom: 16,
-  },
-  backButtonText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: Brand.primary,
-  },
-  header: {
-    marginBottom: 24,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#1E293B",
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: "#64748B",
+    padding: Spacing.lg,
+    paddingBottom: Spacing["4xl"],
   },
   webPortalBanner: {
-    backgroundColor: "#EEF2FF",
-    borderRadius: 16,
-    padding: 16,
+    backgroundColor: Brand.primarySoft,
+    borderRadius: Radius["2xl"],
+    padding: Spacing.lg,
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: Spacing.xl,
     borderWidth: 1,
-    borderColor: "#C7D2FE",
+    borderColor: Brand.primaryLight,
   },
-  webPortalBannerContent: { flex: 1, marginRight: 8 },
-  webPortalBannerTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#3730A3",
-    marginBottom: 4,
-  },
-  webPortalBannerBody: {
-    fontSize: 12,
-    color: "#4338CA",
-    lineHeight: 18,
-  },
-  webPortalBannerArrow: { fontSize: 22, color: "#4338CA", fontWeight: "700" },
+  webPortalBannerContent: { flex: 1, marginRight: Spacing.sm },
+  webPortalBannerTitle: { ...Type.title, color: Brand.primary, fontSize: 14 },
+  webPortalBannerBody: { ...Type.bodySm, color: Brand.primary, marginTop: 4 },
+  webPortalBannerArrow: { fontSize: 22, color: Brand.primary, fontFamily: FontFamily.bodyBold },
   actionsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 12,
-    marginBottom: 32,
+    gap: Spacing.md,
+    marginBottom: Spacing["3xl"],
   },
   actionCard: {
     width: "48%",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 20,
+    backgroundColor: Surface.card,
+    borderRadius: Radius["2xl"],
+    padding: Spacing.xl,
     alignItems: "center",
+    ...Shadow.md,
   },
   actionIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 12,
+    marginBottom: Spacing.md,
   },
-  actionTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#1E293B",
-    textAlign: "center",
-    marginBottom: 4,
-  },
-  actionSubtitle: {
-    fontSize: 12,
-    color: "#64748B",
-    textAlign: "center",
-  },
-  section: {
-    marginBottom: 32,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1E293B",
-    marginBottom: 4,
-  },
-  sectionSubtitle: {
-    fontSize: 13,
-    color: "#64748B",
-    marginBottom: 16,
-  },
+  actionTitle: { ...Type.title, fontSize: 15, textAlign: "center", marginBottom: 4 },
+  actionSubtitle: { ...Type.caption, textAlign: "center" },
+  section: { marginBottom: Spacing["3xl"] },
+  sectionTitle: { ...Type.h3, marginBottom: 4 },
+  sectionSubtitle: { ...Type.bodySm, marginBottom: Spacing.lg },
   deadlineCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    backgroundColor: Surface.card,
+    borderRadius: Radius.xl,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+    ...Shadow.sm,
   },
   deadlineHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 12,
+    marginBottom: Spacing.md,
   },
-  deadlineInfo: {
-    flex: 1,
-  },
-  deadlineName: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#1E293B",
-    marginBottom: 4,
-  },
-  deadlineDate: {
-    fontSize: 13,
-    color: "#64748B",
-  },
+  deadlineInfo: { flex: 1 },
+  deadlineName: { ...Type.title, fontSize: 15 },
+  deadlineDate: { ...Type.bodySm, marginTop: 2 },
   deadlineBadge: {
-    paddingHorizontal: 10,
+    paddingHorizontal: Spacing.md,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: Radius.pill,
   },
-  deadlineBadgeText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
+  deadlineBadgeText: { fontSize: 12, fontFamily: FontFamily.bodyBold },
   deadlineFooter: {
     flexDirection: "row",
     alignItems: "center",
-    paddingTop: 12,
+    paddingTop: Spacing.md,
     borderTopWidth: 1,
-    borderTopColor: "#F1F5F9",
+    borderTopColor: Surface.divider,
   },
   deadlineCount: {
     fontSize: 13,
-    color: "#64748B",
+    color: TextColor.secondary,
     marginLeft: 6,
   },
-  activityCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  activityIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
-  activityInfo: {
-    flex: 1,
-  },
-  activityAction: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1E293B",
-    marginBottom: 2,
-  },
-  activityCompetition: {
-    fontSize: 13,
-    color: "#64748B",
-    marginBottom: 4,
-  },
-  activityTime: {
-    fontSize: 12,
-    color: "#94A3B8",
-  },
   loader: {
-    marginVertical: 40,
+    marginVertical: Spacing["4xl"],
   },
   emptyState: {
-    paddingVertical: 40,
+    paddingVertical: Spacing["4xl"],
     alignItems: "center",
   },
   emptyText: {
     fontSize: 14,
-    color: "#94A3B8",
+    color: TextColor.tertiary,
+    fontFamily: FontFamily.bodyMedium,
   },
 });

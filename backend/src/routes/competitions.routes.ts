@@ -58,7 +58,7 @@ router.get("/recommended", authMiddleware, async (req: Request, res: Response) =
 // ── GET /api/competitions ─────────────────────────────────────────────────
 router.get("/", async (req: Request, res: Response) => {
   try {
-    const { category, grade } = req.query;
+    const { category, grade, slug } = req.query;
 
     let query = "SELECT * FROM competitions";
     const conditions: string[] = [];
@@ -73,6 +73,10 @@ router.get("/", async (req: Request, res: Response) => {
       conditions.push(`grade_level LIKE $${idx++}`);
       values.push(`%${grade}%`);
     }
+    if (slug) {
+      conditions.push(`slug = $${idx++}`);
+      values.push(slug);
+    }
 
     if (conditions.length > 0) {
       query += " WHERE " + conditions.join(" AND ");
@@ -83,6 +87,7 @@ router.get("/", async (req: Request, res: Response) => {
 
     const competitions = result.rows.map((c) => ({
       id: c.id,
+      slug: c.slug ?? null,
       name: c.name,
       organizerName: c.organizer_name,
       category: c.category,
@@ -98,6 +103,7 @@ router.get("/", async (req: Request, res: Response) => {
       isInternational: c.is_international,
       imageUrl: c.image_url,
       participantInstructions: c.participant_instructions,
+      kind: c.kind ?? "native",
       createdAt: c.created_at,
     }));
 
@@ -162,6 +168,7 @@ router.get("/:id", async (req: Request, res: Response) => {
       requiredDocs: c.required_docs,
       description: c.description,
       detailedDescription: c.detailed_description,
+      kind: c.kind ?? "native",
       registrationStatus: c.registration_status,
       isInternational: c.is_international,
       imageUrl: c.image_url,
